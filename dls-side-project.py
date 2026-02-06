@@ -1,0 +1,2865 @@
+import streamlit as st
+import pandas as pd
+import itertools
+import random
+import json
+import os
+import re
+import copy
+import base64
+from datetime import datetime
+import hashlib
+import io
+
+# --- CONFIGURATION ---
+st.set_page_config(page_title="DLS Ultra Manager", page_icon="⚽", layout="wide", initial_sidebar_state="collapsed")
+
+# --- COMPATIBILITY SHIM (Fixes the Button Issue on Cloud & Local) ---
+def safe_rerun():
+    """Handles rerun for both new and old Streamlit versions automatically"""
+    if hasattr(st, 'rerun'):
+        st.rerun()
+    elif hasattr(st, 'experimental_rerun'):
+        st.experimental_rerun()
+    else:
+        st.warning("⚠️ Auto-reload not supported. Please manually refresh your browser.")
+
+# --- CSS STYLING (Deep Burgundy & Golden Sand Theme) ---
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Teko:wght@300;500;700&family=Rajdhani:wght@500;700&display=swap');
+
+    /* BASE THEME - DEEP BURGUNDY BACKGROUND */
+    .stApp {
+        background-color: #050101;
+        background-image: radial-gradient(circle at 50% -20%, #5B0E14 0%, #2a0408 50%, #000000 90%);
+        color: #F1E194;
+    }
+
+    /* TYPOGRAPHY - GOLD */
+    h1, h2, h3 { 
+        font-family: 'Teko', sans-serif !important; 
+        text-transform: uppercase; 
+        margin: 0 !important; 
+        color: #F1E194 !important;
+        letter-spacing: 1.5px;
+        text-shadow: 0px 2px 4px rgba(0,0,0,0.5);
+    }
+    
+    p, div, label, span, li {
+        font-family: 'Rajdhani', sans-serif;
+        color: #e2d2a3;
+    }
+
+    /* TITLES */
+    .big-title {
+        font-size: 5rem; font-weight: 700; text-align: center;
+        background: linear-gradient(180deg, #F1E194 0%, #946c1e 100%);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 40px rgba(91, 14, 20, 0.8);
+        margin-bottom: 20px;
+    }
+
+    /* GLASS PANELS (Burgundy Tint + Gold Border) */
+    .glass-panel {
+        background: rgba(40, 5, 8, 0.7); 
+        border: 1px solid #F1E194; 
+        border-radius: 8px; 
+        padding: 20px; 
+        margin-bottom: 15px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(5px);
+    }
+
+    /* INPUTS & SELECTBOXES */
+    .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
+        background: rgba(0, 0, 0, 0.8) !important; 
+        color: #F1E194 !important; 
+        border: 1px solid #5B0E14 !important;
+        font-family: 'Rajdhani';
+    }
+    
+    /* RADIO BUTTONS */
+    div[role="radiogroup"] label {
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid #5B0E14;
+        padding: 10px;
+        border-radius: 5px;
+    }
+
+    /* BUTTONS (Gold Outline -> Gold Fill) */
+    .stButton > button {
+        background: transparent; 
+        border: 1px solid #F1E194; 
+        color: #F1E194;
+        font-family: 'Rajdhani', sans-serif; 
+        font-weight: 700; 
+        text-transform: uppercase; 
+        width: 100%;
+        transition: all 0.3s ease;
+    }
+    .stButton > button:hover { 
+        background: #F1E194; 
+        color: #5B0E14; 
+        border-color: #F1E194;
+        box-shadow: 0 0 20px rgba(241, 225, 148, 0.4);
+    }
+    
+    /* SPECIAL BUTTONS */
+    .approve-btn { background: linear-gradient(90deg, #2E7D32 0%, #4CAF50 100%) !important; color: white !important; border: 1px solid #4CAF50 !important; }
+    .reject-btn { background: linear-gradient(90deg, #C62828 0%, #F44336 100%) !important; color: white !important; border: 1px solid #F44336 !important; }
+    .reset-btn { background: linear-gradient(90deg, #FF8F00 0%, #FFA726 100%) !important; color: white !important; border: 1px solid #FFA726 !important; }
+    .captain-btn { background: linear-gradient(90deg, #1565C0 0%, #2196F3 100%) !important; color: white !important; border: 1px solid #2196F3 !important; }
+    .danger-btn { background: linear-gradient(90deg, #B71C1C 0%, #D32F2F 100%) !important; color: white !important; border: 1px solid #FF5252 !important; }
+
+    /* DATAFRAME / TABLE STYLE OVERRIDES */
+    div[data-testid="stDataFrame"] {
+        border: 1px solid #5B0E14;
+        background-color: rgba(0,0,0,0.4);
+    }
+
+    /* FOOTER */
+    .footer { 
+        text-align: center; padding: 20px; 
+        color: #946c1e; 
+        font-family: 'Rajdhani'; 
+        border-top: 1px solid #5B0E14; 
+        margin-top: 50px; 
+    }
+    .designer-name { color: #F1E194; font-weight: bold; letter-spacing: 1px; }
+
+    /* SPECIAL STATUS CLASSES */
+    .club-badge { font-size: 3rem; margin-bottom: 10px; }
+    
+    .drop-zone { 
+        background: linear-gradient(90deg, rgba(139, 0, 0, 0.2) 0%, transparent 100%); 
+        border-left: 4px solid #ff4444; 
+        padding-left: 10px;
+    }
+    .safe-zone { 
+        background: linear-gradient(90deg, rgba(241, 225, 148, 0.1) 0%, transparent 100%); 
+        border-left: 4px solid #F1E194; 
+        padding-left: 10px;
+    }
+    .bye-zone { 
+        background: linear-gradient(90deg, rgba(255, 215, 0, 0.2) 0%, transparent 100%); 
+        border-left: 4px solid #FFD700; 
+        padding-left: 10px;
+    }
+    
+    .pending-report {
+        background: linear-gradient(90deg, rgba(255, 193, 7, 0.2) 0%, transparent 100%);
+        border: 2px solid #FFC107;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { border-color: #FFC107; }
+        50% { border-color: #FFA000; }
+        100% { border-color: #FFC107; }
+    }
+
+    .phase-badge { 
+        display: inline-block; 
+        padding: 4px 12px; 
+        border-radius: 0px; 
+        font-size: 0.9rem; 
+        font-weight: bold; 
+        margin-left: 10px; 
+        border: 1px solid #F1E194; 
+        color: #F1E194; 
+        background: rgba(91, 14, 20, 0.8);
+    }
+    
+    .sudden-death { 
+        background: linear-gradient(90deg, #000 0%, #5B0E14 50%, #000 100%); 
+        color: white; 
+        border: 2px solid #ff0000; 
+    }
+    .golden-boot { color: #F1E194; font-weight: bold; font-size: 1.5rem; text-shadow: 0 0 10px #F1E194; }
+    
+    /* TOAST */
+    div[data-baseweb="toast"] {
+        background-color: #5B0E14 !important;
+        color: #F1E194 !important;
+        border: 1px solid #F1E194 !important;
+    }
+    
+    /* METRICS */
+    div[data-testid="stMetricValue"] {
+        color: #F1E194 !important;
+        font-family: 'Teko' !important;
+    }
+    div[data-testid="stMetricLabel"] {
+        color: #946c1e !important;
+    }
+    
+    /* BRACKET STYLES */
+    .bracket-match {
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid #5B0E14;
+        padding: 10px;
+        margin: 5px 0;
+        border-radius: 4px;
+    }
+    .bracket-winner {
+        background: linear-gradient(90deg, rgba(241, 225, 148, 0.2) 0%, transparent 100%);
+        border-left: 3px solid #F1E194;
+    }
+    
+    /* CAPTAIN PORTAL */
+    .captain-portal {
+        background: linear-gradient(135deg, rgba(21, 101, 192, 0.2) 0%, rgba(33, 150, 243, 0.1) 100%);
+        border: 2px solid #2196F3;
+    }
+    
+    /* NOTIFICATION BADGE */
+    .notification-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #F44336;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Rajdhani';
+        font-weight: bold;
+    }
+    
+    /* PROGRESS BAR */
+    .progress-container {
+        width: 100%;
+        background-color: rgba(0, 0, 0, 0.3);
+        border-radius: 10px;
+        margin: 10px 0;
+        height: 20px;
+    }
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #F1E194 0%, #946c1e 100%);
+        border-radius: 10px;
+        text-align: center;
+        line-height: 20px;
+        color: #000;
+        font-weight: bold;
+        font-family: 'Rajdhani';
+    }
+    
+    /* NEWS FEED */
+    .news-item {
+        padding: 10px;
+        margin: 5px 0;
+        border-left: 3px solid #F1E194;
+        background: rgba(0, 0, 0, 0.2);
+    }
+    .news-item:last-child {
+        border-bottom: none;
+    }
+    
+    /* FILE UPLOAD */
+    .uploadedFile {
+        background: rgba(0, 0, 0, 0.5) !important;
+        border: 1px solid #5B0E14 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- 💾 DATABASE ---
+DB_FILE = "dls_ultra_db.json"
+BADGE_POOL = ["🦁", "🦅", "🐺", "🐉", "🦈", "🐍", "🐻", "🐝", "🦂", "🕷️", "⚓", "⚔️", "🛡️", "👑", "⚡", "🔥", "🌪️", "🌊", "🏰", "🚀", "💀", "👹", "👽", "🤖", "👻", "🎃", "💎", "🎯", "🎲", "🎱"]
+
+# Default tournament code
+DEFAULT_TOURNAMENT_CODE = "DLS2026"
+
+def init_defaults():
+    defaults = {
+        'teams': [], 'format': 'League', 'current_round': 'Group Stage',
+        'fixtures': [], 'results': {}, 'match_meta': {},
+        'started': False, 'groups': {}, 'champion': None, 'active_teams': [], 
+        'admin_unlock': False, 'team_badges': {}, 'news': [], 
+        'legacy_stats': {}, 'team_history': {},
+        'eliminated_teams': [], 'round_number': 1, 'survival_history': [],
+        'battle_phase': 'Phase 1: The Purge',
+        'bye_team': None,
+        'cumulative_stats': {},
+        'cumulative_player_stats': {},
+        'sudden_death_round': 0,
+        'phase1_match_count': 2,
+        'world_cup_stage': 'Group Stage',
+        'knockout_bracket': {},
+        'knockout_round': 1,
+        'knockout_winners': {},
+        'match_history': {},
+        
+        # Captain's Portal Additions
+        'captain_pins': {},  # team_name: pin
+        'pending_reports': [],  # List of pending match reports
+        'tournament_code': DEFAULT_TOURNAMENT_CODE,
+        'user_mode': 'Manager',  # 'Manager' or 'Captain'
+        'logged_in_captain': None,
+        'captain_pin_verified': False,
+        'team_passwords': {},  # team_name: hashed_password
+        'captain_logs': []  # Log of captain actions
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state: st.session_state[k] = v
+
+def load_data():
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r") as f:
+                data = json.load(f)
+                # Load all existing data
+                for key in ['teams', 'format', 'current_round', 'fixtures', 'results', 
+                          'match_meta', 'started', 'groups', 'champion', 'active_teams',
+                          'admin_unlock', 'team_badges', 'news', 'legacy_stats', 
+                          'team_history', 'eliminated_teams', 'round_number', 
+                          'survival_history', 'battle_phase', 'bye_team', 
+                          'cumulative_stats', 'cumulative_player_stats', 
+                          'sudden_death_round', 'phase1_match_count',
+                          'world_cup_stage', 'knockout_bracket', 'knockout_round',
+                          'knockout_winners', 'match_history']:
+                    if key in data:
+                        if key == 'fixtures':
+                            st.session_state[key] = [tuple(f) for f in data[key]] if isinstance(data[key], list) else []
+                        else:
+                            st.session_state[key] = data[key]
+                
+                # Load Captain's Portal data with defaults
+                st.session_state.captain_pins = data.get('captain_pins', {})
+                st.session_state.pending_reports = data.get('pending_reports', [])
+                st.session_state.tournament_code = data.get('tournament_code', DEFAULT_TOURNAMENT_CODE)
+                st.session_state.user_mode = data.get('user_mode', 'Manager')
+                st.session_state.logged_in_captain = data.get('logged_in_captain', None)
+                st.session_state.captain_pin_verified = data.get('captain_pin_verified', False)
+                st.session_state.team_passwords = data.get('team_passwords', {})
+                st.session_state.captain_logs = data.get('captain_logs', [])
+
+                # Initialize badges for new teams
+                for t in st.session_state.teams:
+                    if t not in st.session_state.team_badges:
+                        st.session_state.team_badges[t] = random.choice(BADGE_POOL)
+                        
+                # Initialize captain pins for existing teams
+                for t in st.session_state.teams:
+                    if t not in st.session_state.captain_pins:
+                        st.session_state.captain_pins[t] = generate_pin()
+        except Exception as e:
+            st.error(f"Error loading data: {e}")
+            init_defaults()
+    else:
+        init_defaults()
+
+def save_data_internal():
+    """Save all data including captain's portal data"""
+    data = {
+        # Existing data
+        "teams": st.session_state.teams,
+        "format": st.session_state.format,
+        "current_round": st.session_state.current_round,
+        "fixtures": st.session_state.fixtures,
+        "results": st.session_state.results,
+        "match_meta": st.session_state.match_meta,
+        "started": st.session_state.started,
+        "groups": st.session_state.groups,
+        "champion": st.session_state.champion,
+        "active_teams": st.session_state.active_teams,
+        "admin_unlock": st.session_state.admin_unlock,
+        "team_badges": st.session_state.team_badges,
+        "news": st.session_state.news,
+        "legacy_stats": st.session_state.legacy_stats,
+        "team_history": st.session_state.team_history,
+        "eliminated_teams": st.session_state.eliminated_teams,
+        "round_number": st.session_state.round_number,
+        "survival_history": st.session_state.survival_history,
+        "battle_phase": st.session_state.battle_phase,
+        "bye_team": st.session_state.bye_team,
+        "cumulative_stats": st.session_state.cumulative_stats,
+        "cumulative_player_stats": st.session_state.cumulative_player_stats,
+        "sudden_death_round": st.session_state.sudden_death_round,
+        "phase1_match_count": st.session_state.phase1_match_count,
+        "world_cup_stage": st.session_state.world_cup_stage,
+        "knockout_bracket": st.session_state.knockout_bracket,
+        "knockout_round": st.session_state.knockout_round,
+        "knockout_winners": st.session_state.knockout_winners,
+        "match_history": st.session_state.match_history,
+        
+        # Captain's Portal data
+        "captain_pins": st.session_state.captain_pins,
+        "pending_reports": st.session_state.pending_reports,
+        "tournament_code": st.session_state.tournament_code,
+        "user_mode": st.session_state.user_mode,
+        "logged_in_captain": st.session_state.logged_in_captain,
+        "captain_pin_verified": st.session_state.captain_pin_verified,
+        "team_passwords": st.session_state.team_passwords,
+        "captain_logs": st.session_state.captain_logs
+    }
+    with open(DB_FILE, "w") as f: 
+        json.dump(data, f)
+
+# --- NEW FEATURE: DATA MANAGEMENT FUNCTIONS ---
+
+def download_backup():
+    """Create a downloadable backup of all data"""
+    data = {
+        "teams": st.session_state.teams,
+        "format": st.session_state.format,
+        "current_round": st.session_state.current_round,
+        "fixtures": st.session_state.fixtures,
+        "results": st.session_state.results,
+        "match_meta": st.session_state.match_meta,
+        "started": st.session_state.started,
+        "groups": st.session_state.groups,
+        "champion": st.session_state.champion,
+        "active_teams": st.session_state.active_teams,
+        "admin_unlock": st.session_state.admin_unlock,
+        "team_badges": st.session_state.team_badges,
+        "news": st.session_state.news,
+        "legacy_stats": st.session_state.legacy_stats,
+        "team_history": st.session_state.team_history,
+        "eliminated_teams": st.session_state.eliminated_teams,
+        "round_number": st.session_state.round_number,
+        "survival_history": st.session_state.survival_history,
+        "battle_phase": st.session_state.battle_phase,
+        "bye_team": st.session_state.bye_team,
+        "cumulative_stats": st.session_state.cumulative_stats,
+        "cumulative_player_stats": st.session_state.cumulative_player_stats,
+        "sudden_death_round": st.session_state.sudden_death_round,
+        "phase1_match_count": st.session_state.phase1_match_count,
+        "world_cup_stage": st.session_state.world_cup_stage,
+        "knockout_bracket": st.session_state.knockout_bracket,
+        "knockout_round": st.session_state.knockout_round,
+        "knockout_winners": st.session_state.knockout_winners,
+        "match_history": st.session_state.match_history,
+        "captain_pins": st.session_state.captain_pins,
+        "pending_reports": st.session_state.pending_reports,
+        "tournament_code": st.session_state.tournament_code,
+        "user_mode": st.session_state.user_mode,
+        "logged_in_captain": st.session_state.logged_in_captain,
+        "captain_pin_verified": st.session_state.captain_pin_verified,
+        "team_passwords": st.session_state.team_passwords,
+        "captain_logs": st.session_state.captain_logs
+    }
+    
+    # Convert to JSON string
+    json_str = json.dumps(data, indent=2)
+    
+    # Create download link
+    b64 = base64.b64encode(json_str.encode()).decode()
+    href = f'<a href="data:application/json;base64,{b64}" download="dls_ultra_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json" class="stButton">📥 DOWNLOAD BACKUP</a>'
+    return href
+
+def restore_backup(uploaded_file):
+    """Restore data from uploaded backup file"""
+    try:
+        # Read uploaded file
+        data = json.load(uploaded_file)
+        
+        # Validate basic structure
+        required_keys = ['teams', 'format', 'current_round', 'fixtures']
+        for key in required_keys:
+            if key not in data:
+                raise ValueError(f"Invalid backup file: missing {key}")
+        
+        # Clear current session state
+        st.session_state.clear()
+        
+        # Load all data from backup
+        for key, value in data.items():
+            st.session_state[key] = value
+        
+        # Save to disk
+        save_data_internal()
+        
+        return True, "Backup restored successfully!"
+    except Exception as e:
+        return False, f"Error restoring backup: {str(e)}"
+
+def factory_reset():
+    """Complete reset of all tournament data"""
+    # Clear all session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    # Re-initialize defaults
+    init_defaults()
+    
+    # Delete database file if exists
+    if os.path.exists(DB_FILE):
+        os.remove(DB_FILE)
+    
+    return True
+
+def delete_team(team_name):
+    """Delete a team and all associated data"""
+    if team_name in st.session_state.teams:
+        # Remove from teams list
+        st.session_state.teams.remove(team_name)
+        
+        # Remove from active teams if present
+        if team_name in st.session_state.active_teams:
+            st.session_state.active_teams.remove(team_name)
+        
+        # Remove from groups
+        for group_name, teams in st.session_state.groups.items():
+            if team_name in teams:
+                st.session_state.groups[group_name].remove(team_name)
+        
+        # Remove associated data
+        for key in ['team_badges', 'captain_pins', 'team_passwords', 'cumulative_stats']:
+            if team_name in st.session_state.get(key, {}):
+                del st.session_state[key][team_name]
+        
+        # Remove player stats for this team
+        player_ids_to_remove = []
+        for player_id in st.session_state.cumulative_player_stats:
+            if f"|{team_name}" in player_id:
+                player_ids_to_remove.append(player_id)
+        
+        for player_id in player_ids_to_remove:
+            del st.session_state.cumulative_player_stats[player_id]
+        
+        # Remove from eliminated teams
+        st.session_state.eliminated_teams = [e for e in st.session_state.eliminated_teams if e['team'] != team_name]
+        
+        # Regenerate fixtures without this team
+        regenerate_fixtures()
+        
+        # Add to news
+        st.session_state.news.insert(0, f"🗑️ Team '{team_name}' deleted")
+        
+        return True
+    return False
+
+def regenerate_fixtures():
+    """Regenerate fixtures after team deletion"""
+    if not st.session_state.started or not st.session_state.active_teams:
+        return
+    
+    if "Survival" in st.session_state.format:
+        # For Battle Royale, regenerate based on current phase
+        current_phase = st.session_state.battle_phase
+        fixtures = generate_fixtures_for_phase(st.session_state.active_teams, current_phase)
+        st.session_state.fixtures = fixtures
+    elif "League" in st.session_state.format:
+        # Regenerate league fixtures
+        matches = list(itertools.permutations(st.session_state.active_teams, 2))
+        random.shuffle(matches)
+        st.session_state.fixtures = matches
+    elif "World Cup" in st.session_state.format and st.session_state.world_cup_stage == "Group Stage":
+        # Reassign groups and regenerate fixtures
+        shuffled = st.session_state.active_teams.copy()
+        random.shuffle(shuffled)
+        
+        # Redistribute teams into groups
+        groups = {}
+        group_names = "ABCDEFGHIJKLMNOP"
+        group_size = 4
+        
+        for i, team in enumerate(shuffled):
+            group_idx = i // group_size
+            if group_idx >= len(group_names):
+                group_idx = len(group_names) - 1
+            group_name = group_names[group_idx]
+            
+            if group_name not in groups:
+                groups[group_name] = []
+            groups[group_name].append(team)
+        
+        st.session_state.groups = groups
+        
+        # Generate new fixtures
+        matches = []
+        for g, teams in groups.items():
+            matches.extend(list(itertools.combinations(teams, 2)))
+        
+        st.session_state.fixtures = matches
+    elif "Knockout" in st.session_state.format:
+        # Regenerate knockout bracket
+        shuffled = st.session_state.active_teams.copy()
+        random.shuffle(shuffled)
+        
+        # Ensure even number of teams
+        if len(shuffled) % 2 != 0:
+            shuffled.append("BYE")
+        
+        matches = []
+        for i in range(0, len(shuffled), 2):
+            if i + 1 < len(shuffled) and shuffled[i] != "BYE" and shuffled[i+1] != "BYE":
+                matches.append((shuffled[i], shuffled[i + 1]))
+        
+        st.session_state.fixtures = matches
+
+# --- CAPTAIN'S PORTAL FUNCTIONS ---
+
+def generate_pin():
+    """Generate a random 4-digit PIN"""
+    return str(random.randint(1000, 9999))
+
+def generate_team_password():
+    """Generate a random password for team registration"""
+    adjectives = ["Swift", "Brave", "Royal", "Golden", "Mighty", "Fierce", "Noble", "Valiant"]
+    nouns = ["Lions", "Eagles", "Wolves", "Dragons", "Sharks", "Titans", "Gladiators", "Warriors"]
+    return f"{random.choice(adjectives)}{random.choice(nouns)}{random.randint(10, 99)}"
+
+def hash_password(password):
+    """Simple hash for password storage"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def add_team_with_captain(team_name):
+    """Add a team with captain credentials"""
+    if team_name and team_name not in st.session_state.teams:
+        # Add team
+        st.session_state.teams.append(team_name)
+        st.session_state.team_badges[team_name] = random.choice(BADGE_POOL)
+        
+        # Generate PIN and password
+        pin = generate_pin()
+        password = generate_team_password()
+        
+        st.session_state.captain_pins[team_name] = pin
+        st.session_state.team_passwords[team_name] = hash_password(password)
+        
+        # Add to active teams if tournament started
+        if st.session_state.started:
+            st.session_state.active_teams.append(team_name)
+            
+            # Initialize stats
+            if team_name not in st.session_state.cumulative_stats:
+                st.session_state.cumulative_stats[team_name] = {
+                    'P': 0, 'W': 0, 'D': 0, 'L': 0, 
+                    'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0
+                }
+            
+            # Add fixtures for the new team
+            add_fixtures_for_new_team(team_name)
+            
+            st.toast(f"🧢 {team_name} joins the tournament!")
+        
+        # Log the registration
+        log_captain_action(f"Team '{team_name}' registered", team_name)
+        
+        # Show credentials to user
+        credentials_msg = f"""
+        **Team Registered Successfully!**
+        
+        **Team:** {team_name}
+        **Captain PIN:** `{pin}`
+        **Team Password:** `{password}`
+        
+        ⚠️ **SAVE THESE CREDENTIALS NOW!**
+        - You'll need the PIN to log in as captain
+        - Share the password with your team members
+        """
+        
+        return credentials_msg, pin, password
+    return None, None, None
+
+def add_fixtures_for_new_team(team_name):
+    """Add fixtures for a newly added team"""
+    if not st.session_state.started:
+        return
+    
+    # Get all existing teams except the new one
+    other_teams = [t for t in st.session_state.active_teams if t != team_name]
+    
+    # Add fixtures based on tournament format
+    if "League" in st.session_state.format:
+        # Add home and away matches against all other teams
+        for opponent in other_teams:
+            st.session_state.fixtures.append((team_name, opponent))
+            st.session_state.fixtures.append((opponent, team_name))
+    
+    elif "World Cup" in st.session_state.format and st.session_state.world_cup_stage == "Group Stage":
+        # Find a group to add the team to
+        added = False
+        for group_name, teams in st.session_state.groups.items():
+            if len(teams) < 4:  # Add to group with space
+                st.session_state.groups[group_name].append(team_name)
+                # Add group matches
+                for opponent in teams:
+                    st.session_state.fixtures.append((team_name, opponent))
+                    st.session_state.fixtures.append((opponent, team_name))
+                added = True
+                break
+        
+        if not added:
+            # Create new group
+            new_group = chr(65 + len(st.session_state.groups))  # A, B, C, etc.
+            st.session_state.groups[new_group] = [team_name]
+    
+    elif "Knockout" in st.session_state.format:
+        # Add to next available spot
+        st.session_state.fixtures.append((team_name, "BYE" if len(st.session_state.active_teams) % 2 != 0 else other_teams[-1]))
+    
+    elif "Survival" in st.session_state.format:
+        # Survival mode - add to next round's fixtures
+        if st.session_state.fixtures:
+            # Add the team to some existing fixtures
+            for i in range(min(2, len(other_teams))):  # Give them 2 matches
+                opponent = other_teams[i % len(other_teams)]
+                st.session_state.fixtures.append((team_name, opponent))
+
+def log_captain_action(action, team=None):
+    """Log captain actions for audit trail"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_entry = {
+        'timestamp': timestamp,
+        'action': action,
+        'team': team or st.session_state.logged_in_captain,
+        'user_mode': st.session_state.user_mode
+    }
+    st.session_state.captain_logs.append(log_entry)
+    
+    # Keep only last 100 logs
+    if len(st.session_state.captain_logs) > 100:
+        st.session_state.captain_logs = st.session_state.captain_logs[-100:]
+
+def submit_match_report(match_id, home_team, away_team, home_score, away_score, 
+                        home_scorers="", away_scorers="", home_assists="", 
+                        away_assists="", home_reds="", away_reds="", 
+                        home_pens=0, away_pens=0, submitted_by=""):
+    """Submit a match report for approval"""
+    report = {
+        'report_id': f"{match_id}_{datetime.now().timestamp()}",
+        'match_id': match_id,
+        'home_team': home_team,
+        'away_team': away_team,
+        'home_score': home_score,
+        'away_score': away_score,
+        'home_scorers': home_scorers,
+        'away_scorers': away_scorers,
+        'home_assists': home_assists,
+        'away_assists': away_assists,
+        'home_reds': home_reds,
+        'away_reds': away_reds,
+        'home_pens': home_pens,
+        'away_pens': away_pens,
+        'submitted_by': submitted_by,
+        'submitted_at': datetime.now().isoformat(),
+        'status': 'pending'
+    }
+    
+    # Check if there's already a pending report for this match
+    existing = [r for r in st.session_state.pending_reports if r['match_id'] == match_id]
+    if existing:
+        # Replace existing pending report
+        st.session_state.pending_reports = [r for r in st.session_state.pending_reports if r['match_id'] != match_id]
+    
+    st.session_state.pending_reports.append(report)
+    
+    # Log the submission
+    log_captain_action(f"Submitted match report: {home_team} {home_score}-{away_score} {away_team}", submitted_by)
+    
+    return report
+
+def approve_match_report(report_id):
+    """Approve a pending match report"""
+    report = next((r for r in st.session_state.pending_reports if r['report_id'] == report_id), None)
+    if not report:
+        return False
+    
+    # Apply the match result
+    mid = report['match_id']
+    h, a = report['home_team'], report['away_team']
+    s1, s2 = report['home_score'], report['away_score']
+    p1, p2 = report['home_pens'], report['away_pens']
+    
+    update_match_result_safely(mid, h, a, s1, s2, p1, p2, 
+                              report['home_scorers'], report['away_scorers'],
+                              report['home_assists'], report['away_assists'],
+                              report['home_reds'], report['away_reds'])
+    
+    # Remove from pending reports
+    st.session_state.pending_reports = [r for r in st.session_state.pending_reports if r['report_id'] != report_id]
+    
+    # Add to news
+    st.session_state.news.insert(0, f"✅ {h} {s1}-{s2} {a} (Report approved)")
+    
+    # Log the approval
+    log_captain_action(f"Approved match report: {h} {s1}-{s2} {a}")
+    
+    return True
+
+def reject_match_report(report_id):
+    """Reject a pending match report"""
+    report = next((r for r in st.session_state.pending_reports if r['report_id'] == report_id), None)
+    if not report:
+        return False
+    
+    # Remove from pending reports
+    st.session_state.pending_reports = [r for r in st.session_state.pending_reports if r['report_id'] != report_id]
+    
+    # Log the rejection
+    log_captain_action(f"Rejected match report: {report['home_team']} {report['home_score']}-{report['away_score']} {report['away_team']}")
+    
+    return True
+
+def reset_match_result(match_id):
+    """Reset a match result (admin only)"""
+    if match_id in st.session_state.results:
+        # Get match details
+        if "_" in match_id:
+            base = match_id.split('_')[0]
+        else:
+            base = match_id
+        
+        if "v" in base:
+            h, a = base.split('v')
+        else:
+            return False
+        
+        # Remove from results
+        del st.session_state.results[match_id]
+        
+        # Remove from match meta
+        if match_id in st.session_state.match_meta:
+            del st.session_state.match_meta[match_id]
+        
+        # Remove from match history
+        if match_id in st.session_state.match_history:
+            del st.session_state.match_history[match_id]
+        
+        # Add to news
+        st.session_state.news.insert(0, f"🔄 Match reset: {h} vs {a}")
+        
+        # Log the reset
+        log_captain_action(f"Reset match: {h} vs {a}")
+        
+        return True
+    return False
+
+# --- 🧠 BATTLE ROYALE CORE LOGIC ---
+
+def generate_balanced_fixtures_fixed(teams, matches_per_team):
+    """Generate fixtures where EVERY team plays exactly N matches"""
+    if len(teams) < 2: return []
+    
+    # Create a round-robin schedule
+    def round_robin(teams_list):
+        """Generate round-robin pairs"""
+        if len(teams_list) % 2:
+            teams_list.append(None)
+        
+        n = len(teams_list)
+        fixtures = []
+        
+        for round_num in range(n - 1):
+            round_fixtures = []
+            for i in range(n // 2):
+                if teams_list[i] is not None and teams_list[n - 1 - i] is not None:
+                    round_fixtures.append((teams_list[i], teams_list[n - 1 - i]))
+            
+            teams_list.insert(1, teams_list.pop())
+            fixtures.extend(round_fixtures)
+        
+        return fixtures
+    
+    all_possible = list(itertools.combinations(teams, 2))
+    random.shuffle(all_possible)
+    
+    if matches_per_team <= len(teams) - 1:
+        fixtures = []
+        for _ in range(matches_per_team):
+            round_fixtures = round_robin(teams.copy())
+            round_fixtures = [f for f in round_fixtures if f[0] is not None and f[1] is not None]
+            fixtures.extend(round_fixtures)
+        
+        total_matches_needed = (len(teams) * matches_per_team) // 2
+        if len(fixtures) >= total_matches_needed:
+            return fixtures[:total_matches_needed]
+    
+    team_match_counts = {team: 0 for team in teams}
+    fixtures = []
+    available_pairs = all_possible.copy()
+    
+    iterations = 0
+    while available_pairs and min(team_match_counts.values()) < matches_per_team:
+        iterations += 1
+        if iterations > 2000: break # Safety break
+        
+        for pair in available_pairs[:]:
+            t1, t2 = pair
+            if team_match_counts[t1] < matches_per_team and team_match_counts[t2] < matches_per_team:
+                fixtures.append(pair)
+                team_match_counts[t1] += 1
+                team_match_counts[t2] += 1
+                available_pairs.remove(pair)
+                break
+        else:
+            break
+    
+    # Fallback to random pairings if balanced generation failed
+    if min(team_match_counts.values()) < matches_per_team:
+        needy_teams = [t for t in teams if team_match_counts[t] < matches_per_team]
+        
+        for i in range(len(needy_teams)):
+            for j in range(i + 1, len(needy_teams)):
+                t1, t2 = needy_teams[i], needy_teams[j]
+                # Allow duplicates if absolutely necessary to get games
+                existing = False
+                for fix in fixtures:
+                    if (fix[0] == t1 and fix[1] == t2) or (fix[0] == t2 and fix[1] == t1):
+                        existing = True
+                        break
+                
+                if not existing or len(fixtures) < len(teams):
+                    fixtures.append((t1, t2))
+                    team_match_counts[t1] += 1
+                    team_match_counts[t2] += 1
+    
+    return fixtures
+
+def generate_fixtures_for_phase(teams, phase):
+    """Generate fixtures based on current phase"""
+    shuffled = teams.copy()
+    random.shuffle(shuffled)
+    
+    if phase == "Phase 1: The Purge":
+        matches_per_team = 2
+        fixtures = generate_balanced_fixtures_fixed(shuffled, matches_per_team)
+        if not fixtures: # Emergency fallback
+             fixtures = list(itertools.combinations(shuffled[:4], 2)) 
+        return fixtures
+    
+    elif phase == "Phase 2: The Squeeze":
+        fixtures = []
+        for i in range(len(shuffled)):
+            for j in range(i+1, len(shuffled)):
+                fixtures.append((shuffled[i], shuffled[j]))
+                fixtures.append((shuffled[j], shuffled[i]))
+        random.shuffle(fixtures)
+        return fixtures
+    
+    elif phase == "Phase 3: The Standoff":
+        standings = get_cumulative_standings()
+        if len(standings) < 3: return []
+        
+        standings.sort(key=lambda x: (x['Pts'], x['GD'], x['GF']), reverse=True)
+        
+        leader = standings[0]['Team']
+        second = standings[1]['Team']
+        third = standings[2]['Team']
+        
+        st.session_state.bye_team = leader
+        st.session_state.news.insert(0, f"👑 {leader} gets automatic BYE to Grand Final!")
+        
+        return [(second, third), (third, second)]
+    
+    elif phase == "Phase 4: The Grand Final":
+        return [(shuffled[0], shuffled[1])]
+    
+    return []
+
+def get_cumulative_standings():
+    """Get current cumulative standings for all active teams - FIXED VERSION"""
+    standings = []
+    
+    # DIRECTLY use cumulative stats - this is the key fix
+    for team in st.session_state.active_teams:
+        if team in st.session_state.cumulative_stats:
+            stats = st.session_state.cumulative_stats[team]
+            standings.append({
+                'Team': team,
+                'P': stats.get('P', 0),
+                'W': stats.get('W', 0),
+                'D': stats.get('D', 0),
+                'L': stats.get('L', 0),
+                'GF': stats.get('GF', 0),
+                'GA': stats.get('GA', 0),
+                'GD': stats.get('GD', 0),
+                'Pts': stats.get('Pts', 0)
+            })
+        else:
+            # Initialize with zeros if no stats yet
+            standings.append({
+                'Team': team,
+                'P': 0, 'W': 0, 'D': 0, 'L': 0,
+                'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0
+            })
+    
+    return standings
+
+def process_player_string_update(raw_str, team, stat_type):
+    """Helper function to update player stats from a string"""
+    if not raw_str: return
+    
+    # First, split by commas
+    raw_parts = raw_str.split(',')
+    
+    for raw_player in raw_parts:
+        raw_player = raw_player.strip()
+        if not raw_player: continue
+        
+        count = 1
+        name = raw_player
+        
+        # Handle different formats
+        # Format 1: "Player (2)" - parentheses
+        m_br = re.search(r'^(.*?)\s*\((\d+)\)$', raw_player)
+        if m_br:
+            name = m_br.group(1).strip()
+            count = int(m_br.group(2))
+        # Format 2: "Player x2" - x notation
+        m_x = re.search(r'^(.*?)\s*[xX](\d+)$', raw_player)
+        if m_x:
+            name = m_x.group(1).strip()
+            count = int(m_x.group(2))
+        
+        # Clean up name
+        name = name.strip().title()
+        if not name: continue
+        
+        # Create unique player ID
+        player_id = f"{name}|{team}"
+        
+        # Initialize if not exists
+        if player_id not in st.session_state.cumulative_player_stats:
+            st.session_state.cumulative_player_stats[player_id] = {
+                'Name': name,
+                'Team': team,
+                'G': 0, 'A': 0, 'R': 0
+            }
+        
+        # Add stats
+        st.session_state.cumulative_player_stats[player_id][stat_type] += count
+
+def handle_battle_royale_elimination():
+    """Execute Battle Royale protocol - UPDATED VERSION"""
+    # Removed global try block to stop swallowing RerunException
+    standings = get_cumulative_standings()
+    
+    # Sort by Points → GD → GF
+    standings.sort(key=lambda x: (x['Pts'], x['GD'], x['GF']), reverse=True)
+    
+    remaining = len(standings)
+    
+    # DETERMINE CURRENT PHASE
+    if remaining >= 5:
+        phase = "Phase 1: The Purge"
+        elim_count = 2
+    elif remaining == 4:
+        phase = "Phase 2: The Squeeze"
+        elim_count = 1
+    elif remaining == 3:
+        phase = "Phase 3: The Standoff"
+        elim_count = 0
+    elif remaining == 2:
+        phase = "Phase 4: The Grand Final"
+        elim_count = 0
+    else:
+        # Only 1 team left - CHAMPION!
+        st.session_state.champion = standings[0]['Team']
+        st.session_state.news.insert(0, f"🏆 {st.session_state.champion} is the BATTLE ROYALE CHAMPION!")
+        st.session_state.battle_phase = "CHAMPION CROWNED"
+        save_data_internal()
+        safe_rerun()
+        return
+    
+    # Update phase if changed
+    if phase != st.session_state.battle_phase:
+        st.session_state.battle_phase = phase
+        st.session_state.news.insert(0, f"🔁 PHASE CHANGE: {phase}")
+    
+    # Handle eliminations based on phase
+    eliminated_this_round = []
+    
+    if phase == "Phase 1: The Purge":
+        bottom_teams = standings[-2:]
+        for team_data in bottom_teams:
+            team = team_data['Team']
+            if team in st.session_state.active_teams:
+                st.session_state.active_teams.remove(team)
+                eliminated_this_round.append(team)
+                st.session_state.eliminated_teams.append({
+                    'team': team,
+                    'round': st.session_state.round_number,
+                    'position': remaining - standings.index(team_data),
+                    'phase': phase
+                })
+        
+        if eliminated_this_round:
+            st.session_state.news.insert(0, f"💀 PURGED: {', '.join(eliminated_this_round)} eliminated!")
+    
+    elif phase == "Phase 2: The Squeeze":
+        bottom_team = standings[-1]['Team']
+        if bottom_team in st.session_state.active_teams:
+            st.session_state.active_teams.remove(bottom_team)
+            eliminated_this_round.append(bottom_team)
+            st.session_state.eliminated_teams.append({
+                'team': bottom_team,
+                'round': st.session_state.round_number,
+                'position': 4,
+                'phase': phase
+            })
+        
+        if eliminated_this_round:
+            st.session_state.news.insert(0, f"💀 SQUEEZED OUT: {bottom_team} eliminated!")
+    
+    elif phase == "Phase 3: The Standoff":
+        if st.session_state.sudden_death_round >= 2:
+            leader = standings[0]['Team']
+            second = standings[1]['Team']
+            third = standings[2]['Team']
+            
+            match1_id = f"{second}v{third}_0"
+            match2_id = f"{third}v{second}_1"
+            
+            res1 = st.session_state.results.get(match1_id, [0, 0])
+            res2 = st.session_state.results.get(match2_id, [0, 0])
+            
+            second_goals = res1[0] + res2[1]
+            third_goals = res1[1] + res2[0]
+            
+            if second_goals > third_goals:
+                loser = third
+                winner = second
+            elif third_goals > second_goals:
+                loser = second
+                winner = third
+            else:
+                if len(res1) > 2 and len(res2) > 2:
+                    second_pens = res1[2] + res2[3]
+                    third_pens = res1[3] + res2[2]
+                    loser = third if second_pens > third_pens else second
+                    winner = second if second_pens > third_pens else third
+                else:
+                    loser = third if standings[1]['Pts'] > standings[2]['Pts'] else second
+            
+            if loser in st.session_state.active_teams:
+                st.session_state.active_teams.remove(loser)
+                eliminated_this_round.append(loser)
+                st.session_state.eliminated_teams.append({
+                    'team': loser,
+                    'round': st.session_state.round_number,
+                    'position': 3,
+                    'phase': phase,
+                    'reason': 'Lost Sudden Death Semi-Final'
+                })
+                st.session_state.news.insert(0, f"💀 SUDDEN DEATH: {loser} eliminated! {winner} advances to Final!")
+            
+            st.session_state.sudden_death_round = 0
+            st.session_state.bye_team = None
+    
+    # Generate next round fixtures
+    next_fixtures = generate_fixtures_for_phase(st.session_state.active_teams, phase)
+    st.session_state.fixtures = next_fixtures
+    
+    # Update round info
+    st.session_state.round_number += 1
+    
+    if phase == "Phase 3: The Standoff" and not eliminated_this_round:
+        st.session_state.sudden_death_round += 1
+        if st.session_state.sudden_death_round == 1:
+            st.session_state.current_round = f"SUDDEN DEATH • Leg 1 • {phase}"
+        else:
+            st.session_state.current_round = f"SUDDEN DEATH • Leg 2 • {phase}"
+    else:
+        st.session_state.current_round = f"Round {st.session_state.round_number} • {phase}"
+    
+    # Reset match data for next round
+    st.session_state.results = {}
+    st.session_state.match_meta = {}
+    
+    # Log history
+    st.session_state.survival_history.append({
+        'round': st.session_state.round_number - 1,
+        'phase': phase,
+        'remaining': len(st.session_state.active_teams),
+        'eliminated': eliminated_this_round
+    })
+    
+    save_data_internal()
+    safe_rerun()
+
+# --- 🏆 TOURNAMENT FORMAT COMPLETION ---
+
+def generate_knockout_bracket(teams, round_name="Round of 16"):
+    """Generate knockout bracket for given teams"""
+    shuffled = teams.copy()
+    random.shuffle(shuffled)
+    
+    bracket = {}
+    matches = []
+    
+    # Create matches for current round
+    for i in range(0, len(shuffled), 2):
+        if i + 1 < len(shuffled):
+            match_id = f"{round_name}_match_{len(matches)}"
+            bracket[match_id] = {
+                'home': shuffled[i],
+                'away': shuffled[i + 1],
+                'round': round_name,
+                'winner': None,
+                'result': None
+            }
+            matches.append((shuffled[i], shuffled[i + 1]))
+    
+    return bracket, matches
+
+def advance_world_cup_knockout():
+    """Advance World Cup to knockout stage"""
+    if st.session_state.world_cup_stage != "Group Stage":
+        return
+    
+    # Calculate group winners and runners-up
+    group_winners = []
+    group_runners = []
+    
+    for group_name, teams in st.session_state.groups.items():
+        group_standings = []
+        
+        for team in teams:
+            # Calculate team stats from results
+            stats = {'Team': team, 'P': 0, 'W': 0, 'D': 0, 'L': 0, 'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0}
+            
+            for mid, res in st.session_state.results.items():
+                if "_" in mid:
+                    base = mid.split('_')[0]
+                else:
+                    base = mid
+                
+                if "v" in base:
+                    h, a = base.split('v')
+                else:
+                    continue
+                
+                if h == team or a == team:
+                    is_home = h == team
+                    s_h, s_a = res[0], res[1]
+                    
+                    stats['P'] += 1
+                    stats['GF'] += s_h if is_home else s_a
+                    stats['GA'] += s_a if is_home else s_h
+                    stats['GD'] += (s_h - s_a) if is_home else (s_a - s_h)
+                    
+                    if is_home:
+                        if s_h > s_a:
+                            stats['W'] += 1
+                            stats['Pts'] += 3
+                        elif s_a > s_h:
+                            stats['L'] += 1
+                        else:
+                            stats['D'] += 1
+                            stats['Pts'] += 1
+                    else:
+                        if s_a > s_h:
+                            stats['W'] += 1
+                            stats['Pts'] += 3
+                        elif s_h > s_a:
+                            stats['L'] += 1
+                        else:
+                            stats['D'] += 1
+                            stats['Pts'] += 1
+            
+            group_standings.append(stats)
+        
+        # Sort group standings
+        group_standings.sort(key=lambda x: (x['Pts'], x['GD'], x['GF']), reverse=True)
+        
+        if len(group_standings) >= 2:
+            group_winners.append(group_standings[0]['Team'])
+            group_runners.append(group_standings[1]['Team'])
+    
+    # Create Round of 16 bracket (World Cup format)
+    knockout_teams = group_winners + group_runners
+    random.shuffle(knockout_teams)
+    
+    # Generate bracket
+    bracket, matches = generate_knockout_bracket(knockout_teams, "Round of 16")
+    
+    st.session_state.knockout_bracket = bracket
+    st.session_state.fixtures = matches
+    st.session_state.world_cup_stage = "Round of 16"
+    st.session_state.current_round = "Round of 16"
+    st.session_state.news.insert(0, "🏆 World Cup advances to Knockout Stage!")
+    
+    save_data_internal()
+
+def advance_knockout_tournament():
+    """Advance any knockout tournament to next round"""
+    # Check if all current matches have results
+    current_matches_complete = True
+    for i, match in enumerate(st.session_state.fixtures):
+        if len(match) < 2:
+            continue
+        h, a = match[0], match[1]
+        mid = f"{h}v{a}_{i}"
+        if mid not in st.session_state.results:
+            current_matches_complete = False
+            break
+    
+    if not current_matches_complete:
+        st.warning("Cannot advance: Some matches in current round don't have results!")
+        return
+    
+    # Determine winners
+    winners = []
+    for i, match in enumerate(st.session_state.fixtures):
+        if len(match) < 2:
+            continue
+        h, a = match[0], match[1]
+        mid = f"{h}v{a}_{i}"
+        res = st.session_state.results[mid]
+        
+        if len(res) >= 2:
+            if res[0] > res[1]:
+                winners.append(h)
+            elif res[1] > res[0]:
+                winners.append(a)
+            else:
+                # Draw - check for penalties
+                if len(res) > 2:
+                    if res[2] > res[3]:
+                        winners.append(h)
+                    else:
+                        winners.append(a)
+                else:
+                    # No penalties recorded - random winner
+                    winners.append(random.choice([h, a]))
+    
+    # Check if we have a champion
+    if len(winners) == 1:
+        st.session_state.champion = winners[0]
+        st.session_state.news.insert(0, f"🏆 {st.session_state.champion} is the CHAMPION!")
+        st.session_state.current_round = "TOURNAMENT COMPLETE"
+        save_data_internal()
+        safe_rerun()
+        return
+    
+    # Determine next round name
+    round_names = {
+        8: "Quarter Finals",
+        4: "Semi Finals",
+        2: "Final"
+    }
+    
+    next_round = round_names.get(len(winners), f"Round {st.session_state.knockout_round + 1}")
+    
+    # Generate next round fixtures
+    shuffled = winners.copy()
+    random.shuffle(shuffled)
+    
+    next_fixtures = []
+    for i in range(0, len(shuffled), 2):
+        if i + 1 < len(shuffled):
+            next_fixtures.append((shuffled[i], shuffled[i + 1]))
+    
+    st.session_state.fixtures = next_fixtures
+    st.session_state.knockout_round += 1
+    st.session_state.current_round = next_round
+    st.session_state.results = {}
+    st.session_state.match_meta = {}
+    
+    # For World Cup, update stage
+    if "World Cup" in st.session_state.format:
+        stage_map = {
+            "Round of 16": "Quarter Finals",
+            "Quarter Finals": "Semi Finals",
+            "Semi Finals": "Final"
+        }
+        if st.session_state.world_cup_stage in stage_map:
+            st.session_state.world_cup_stage = stage_map[st.session_state.world_cup_stage]
+    
+    st.session_state.news.insert(0, f"⚽ Advancing to {next_round}!")
+    save_data_internal()
+    safe_rerun()
+
+def update_match_result_safely(mid, h, a, s1, s2, p1=0, p2=0, gs1="", gs2="", ha="", aa="", hr="", ar=""):
+    """Safely update match result without duplicate points - FIXED VERSION"""
+    # Check if this match was already processed
+    was_processed = mid in st.session_state.match_history
+    
+    if was_processed:
+        # Remove old stats before adding new ones
+        old_res = st.session_state.match_history[mid]
+        old_s1, old_s2 = old_res['score']
+        old_p1, old_p2 = old_res.get('pens', (0, 0))
+        
+        # Reverse old stats
+        if h in st.session_state.cumulative_stats:
+            stats = st.session_state.cumulative_stats[h]
+            stats['P'] -= 1
+            stats['GF'] -= old_s1
+            stats['GA'] -= old_s2
+            stats['GD'] -= (old_s1 - old_s2)
+            
+            if old_s1 > old_s2:
+                stats['W'] -= 1
+                stats['Pts'] -= 3
+            elif old_s2 > old_s1:
+                stats['L'] -= 1
+            else:
+                stats['D'] -= 1
+                stats['Pts'] -= 1
+        
+        if a in st.session_state.cumulative_stats:
+            stats = st.session_state.cumulative_stats[a]
+            stats['P'] -= 1
+            stats['GF'] -= old_s2
+            stats['GA'] -= old_s1
+            stats['GD'] -= (old_s2 - old_s1)
+            
+            if old_s2 > old_s1:
+                stats['W'] -= 1
+                stats['Pts'] -= 3
+            elif old_s1 > old_s2:
+                stats['L'] -= 1
+            else:
+                stats['D'] -= 1
+                stats['Pts'] -= 1
+    
+    # Initialize cumulative stats if not exists
+    if h not in st.session_state.cumulative_stats:
+        st.session_state.cumulative_stats[h] = {
+            'P': 0, 'W': 0, 'D': 0, 'L': 0, 
+            'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0
+        }
+    if a not in st.session_state.cumulative_stats:
+        st.session_state.cumulative_stats[a] = {
+            'P': 0, 'W': 0, 'D': 0, 'L': 0, 
+            'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0
+        }
+    
+    # Update cumulative team stats
+    st.session_state.cumulative_stats[h]['P'] += 1
+    st.session_state.cumulative_stats[a]['P'] += 1
+    st.session_state.cumulative_stats[h]['GF'] += s1
+    st.session_state.cumulative_stats[h]['GA'] += s2
+    st.session_state.cumulative_stats[h]['GD'] += (s1 - s2)
+    st.session_state.cumulative_stats[a]['GF'] += s2
+    st.session_state.cumulative_stats[a]['GA'] += s1
+    st.session_state.cumulative_stats[a]['GD'] += (s2 - s1)
+    
+    if s1 > s2:
+        st.session_state.cumulative_stats[h]['W'] += 1
+        st.session_state.cumulative_stats[h]['Pts'] += 3
+        st.session_state.cumulative_stats[a]['L'] += 1
+    elif s2 > s1:
+        st.session_state.cumulative_stats[a]['W'] += 1
+        st.session_state.cumulative_stats[a]['Pts'] += 3
+        st.session_state.cumulative_stats[h]['L'] += 1
+    else:
+        st.session_state.cumulative_stats[h]['D'] += 1
+        st.session_state.cumulative_stats[h]['Pts'] += 1
+        st.session_state.cumulative_stats[a]['D'] += 1
+        st.session_state.cumulative_stats[a]['Pts'] += 1
+    
+    # Store match history
+    st.session_state.match_history[mid] = {
+        'score': (s1, s2),
+        'pens': (p1, p2),
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Store result
+    if p1 > 0 or p2 > 0:
+        st.session_state.results[mid] = [s1, s2, p1, p2]
+    else:
+        st.session_state.results[mid] = [s1, s2]
+    
+    # Store match meta
+    st.session_state.match_meta[mid] = {
+        'h_s': gs1, 'a_s': gs2, 
+        'h_a': ha, 'a_a': aa, 
+        'h_r': hr, 'a_r': ar
+    }
+    
+    # Update player stats (remove old ones first if exists)
+    if was_processed:
+        # Remove old player stats (simplified approach - we'll just reset and re-add)
+        # For simplicity, we'll just update with new values
+        pass
+    
+    # Add new player stats
+    process_player_string_update(gs1, h, 'G')
+    process_player_string_update(gs2, a, 'G')
+    process_player_string_update(ha, h, 'A')
+    process_player_string_update(aa, a, 'A')
+    process_player_string_update(hr, h, 'R')
+    process_player_string_update(ar, a, 'R')
+
+def verify_data_consistency():
+    """Check if cumulative stats match with recorded results"""
+    mismatches = []
+    recalculated_stats = {}
+    
+    # Initialize all active teams
+    for team in st.session_state.active_teams:
+        recalculated_stats[team] = {
+            'P': 0, 'W': 0, 'D': 0, 'L': 0, 
+            'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0
+        }
+    
+    # Recalculate from all recorded results
+    for mid, res in st.session_state.results.items():
+        try:
+            if "_" in mid:
+                base = mid.split('_')[0]
+            else:
+                base = mid
+            
+            if "v" in base:
+                h, a = base.split('v')
+            else:
+                continue
+        except:
+            continue
+        
+        # Skip if teams are not active (shouldn't happen but just in case)
+        if h not in recalculated_stats:
+            recalculated_stats[h] = {'P': 0, 'W': 0, 'D': 0, 'L': 0, 'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0}
+        if a not in recalculated_stats:
+            recalculated_stats[a] = {'P': 0, 'W': 0, 'D': 0, 'L': 0, 'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0}
+        
+        s_h, s_a = res[0], res[1]
+        
+        # Update recalculated stats
+        recalculated_stats[h]['P'] += 1
+        recalculated_stats[a]['P'] += 1
+        recalculated_stats[h]['GF'] += s_h
+        recalculated_stats[h]['GA'] += s_a
+        recalculated_stats[h]['GD'] += (s_h - s_a)
+        recalculated_stats[a]['GF'] += s_a
+        recalculated_stats[a]['GA'] += s_h
+        recalculated_stats[a]['GD'] += (s_a - s_h)
+        
+        if s_h > s_a:
+            recalculated_stats[h]['W'] += 1
+            recalculated_stats[h]['Pts'] += 3
+            recalculated_stats[a]['L'] += 1
+        elif s_a > s_h:
+            recalculated_stats[a]['W'] += 1
+            recalculated_stats[a]['Pts'] += 3
+            recalculated_stats[h]['L'] += 1
+        else:
+            recalculated_stats[h]['D'] += 1
+            recalculated_stats[h]['Pts'] += 1
+            recalculated_stats[a]['D'] += 1
+            recalculated_stats[a]['Pts'] += 1
+    
+    # Compare with stored cumulative stats
+    for team in st.session_state.active_teams:
+        if team in st.session_state.cumulative_stats and team in recalculated_stats:
+            stored = st.session_state.cumulative_stats[team]
+            calculated = recalculated_stats[team]
+            
+            for key in ['P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts']:
+                stored_val = stored.get(key, 0)
+                calculated_val = calculated.get(key, 0)
+                if stored_val != calculated_val:
+                    mismatches.append({
+                        'team': team,
+                        'key': key,
+                        'stored': stored_val,
+                        'calculated': calculated_val
+                    })
+    
+    return mismatches, recalculated_stats
+
+# Initialize session state
+if 'data_loaded' not in st.session_state:
+    load_data()
+    st.session_state.data_loaded = True
+
+init_defaults()
+
+# --- 🏆 HEADER ---
+st.markdown('<div class="big-title">DLS ULTRA</div>', unsafe_allow_html=True)
+
+# Special Battle Royale header
+if "Survival" in st.session_state.format:
+    st.markdown(f"""
+    <div style="text-align: center; margin: 20px 0; padding: 15px; background: linear-gradient(90deg, #000 0%, #5B0E14 50%, #000 100%); border-radius: 10px; border: 1px solid #F1E194;">
+        <h2 style="color: #F1E194; font-family: 'Teko'; margin: 0;">💀 BATTLE ROYALE PROTOCOL</h2>
+        <p style="color: #F1E194; font-family: 'Rajdhani'; margin: 5px 0 0 0;">"Survive the Cut. Trust No One."</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+if st.session_state.champion:
+    st.markdown(f'<div style="text-align: center; color:#F1E194; font-size: 2rem; font-family: Teko, sans-serif;">👑 CHAMPION: {st.session_state.champion} 👑</div>', unsafe_allow_html=True)
+else:
+    subtitle = f"{st.session_state.current_round}"
+    if "Survival" in st.session_state.format:
+        phase_badge = ""
+        if "Phase 1" in st.session_state.battle_phase:
+            phase_badge = '<span class="phase-badge phase-1">THE PURGE (2 matches each)</span>'
+        elif "Phase 2" in st.session_state.battle_phase:
+            phase_badge = '<span class="phase-badge phase-2">THE SQUEEZE (2 matches each)</span>'
+        elif "Phase 3" in st.session_state.battle_phase:
+            phase_badge = '<span class="phase-badge phase-3">THE STANDOFF</span>'
+        elif "Phase 4" in st.session_state.battle_phase:
+            phase_badge = '<span class="phase-badge phase-4">GRAND FINAL</span>'
+        
+        subtitle = f"Round {st.session_state.round_number} • {st.session_state.battle_phase} {phase_badge}"
+    
+    st.markdown(f'<div style="text-align: center; color: #F1E194; font-family: Rajdhani, sans-serif; margin-bottom: 2rem;">{subtitle}</div>', unsafe_allow_html=True)
+
+# --- 🔒 SIDEBAR - CAPTAIN'S PORTAL & DATA MANAGEMENT ---
+with st.sidebar:
+    # User Mode Selector
+    st.markdown("### 👤 USER MODE")
+    user_mode = st.radio("Select Mode", ["Manager", "Team Captain"], 
+                        key="user_mode_selector",
+                        index=0 if st.session_state.user_mode == "Manager" else 1)
+    
+    if user_mode != st.session_state.user_mode:
+        st.session_state.user_mode = user_mode
+        if user_mode == "Manager":
+            st.session_state.logged_in_captain = None
+            st.session_state.captain_pin_verified = False
+        save_data_internal()
+        safe_rerun()
+    
+    st.markdown("---")
+    
+    if st.session_state.user_mode == "Manager":
+        # MANAGER MODE
+        st.markdown("### 🔐 MANAGER ACCESS")
+        
+        if not st.session_state.admin_unlock:
+            pin = st.text_input("ENTER ADMIN PIN", type="password", key="pin_input")
+            if pin == "0209": 
+                st.session_state.admin_unlock = True
+                save_data_internal()
+                safe_rerun()
+        
+        if st.session_state.admin_unlock:
+            st.success("ADMIN ACCESS GRANTED")
+            
+            # Pending reports notification
+            pending_count = len(st.session_state.pending_reports)
+            if pending_count > 0:
+                st.warning(f"🔔 {pending_count} pending report(s) awaiting approval!")
+            
+            # --- TEAM EDITOR SECTION ---
+            st.markdown("### 🏆 TEAM EDITOR")
+            
+            # Add new team
+            with st.expander("➕ ADD CLUB", expanded=False):
+                new_team = st.text_input("Team Name", key="add_team_input")
+                if st.button("➕ ADD TEAM", key="add_team_btn"):
+                    if new_team and new_team not in st.session_state.teams:
+                        credentials_msg, pin, password = add_team_with_captain(new_team)
+                        if credentials_msg:
+                            save_data_internal()
+                            with st.expander("✅ CREDENTIALS - SAVE THESE!", expanded=True):
+                                st.markdown(credentials_msg)
+                            st.success(f"Team '{new_team}' added!")
+                            safe_rerun()
+                    elif new_team in st.session_state.teams:
+                        st.error("Team already exists!")
+            
+            # Delete team
+            with st.expander("🗑️ DELETE CLUB", expanded=False):
+                if st.session_state.teams:
+                    team_to_delete = st.selectbox("Select team to delete", 
+                                                 ["Select..."] + st.session_state.teams,
+                                                 key="delete_team_select")
+                    
+                    if team_to_delete != "Select...":
+                        if st.button("🗑️ DELETE TEAM", key="delete_team_btn", type="secondary"):
+                            if delete_team(team_to_delete):
+                                save_data_internal()
+                                st.success(f"Team '{team_to_delete}' deleted!")
+                                safe_rerun()
+                else:
+                    st.info("No teams to delete")
+            
+            # Reset tournament
+            with st.expander("🔄 RESET TOURNAMENT", expanded=False):
+                st.warning("This will reset all stats but keep teams")
+                if st.button("🔄 RESET ALL STATS", key="reset_stats_btn", type="secondary"):
+                    # Reset all stats but keep teams
+                    st.session_state.results = {}
+                    st.session_state.match_meta = {}
+                    st.session_state.match_history = {}
+                    st.session_state.cumulative_stats = {}
+                    st.session_state.cumulative_player_stats = {}
+                    st.session_state.news = []
+                    st.session_state.eliminated_teams = []
+                    st.session_state.survival_history = []
+                    st.session_state.round_number = 1
+                    st.session_state.battle_phase = "Phase 1: The Purge"
+                    st.session_state.bye_team = None
+                    st.session_state.sudden_death_round = 0
+                    st.session_state.champion = None
+                    
+                    # Reinitialize stats for all teams
+                    for team in st.session_state.teams:
+                        st.session_state.cumulative_stats[team] = {
+                            'P': 0, 'W': 0, 'D': 0, 'L': 0, 
+                            'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0
+                        }
+                    
+                    # Regenerate fixtures
+                    if st.session_state.started:
+                        if "Survival" in st.session_state.format:
+                            matches = generate_fixtures_for_phase(st.session_state.teams, "Phase 1: The Purge")
+                            st.session_state.fixtures = matches
+                        elif "League" in st.session_state.format:
+                            matches = list(itertools.permutations(st.session_state.teams, 2))
+                            random.shuffle(matches)
+                            st.session_state.fixtures = matches
+                        elif "World Cup" in st.session_state.format:
+                            st.session_state.world_cup_stage = "Group Stage"
+                            # Regenerate groups and fixtures
+                            shuffled = st.session_state.teams.copy()
+                            random.shuffle(shuffled)
+                            groups = {}
+                            group_names = "ABCDEFGHIJKLMNOP"
+                            group_size = 4
+                            
+                            for i in range(0, len(shuffled), group_size):
+                                group_idx = i // group_size
+                                if group_idx < len(group_names):
+                                    groups[group_names[group_idx]] = shuffled[i:i+group_size]
+                            
+                            st.session_state.groups = groups
+                            matches = []
+                            for g, teams in groups.items():
+                                matches.extend(list(itertools.combinations(teams, 2)))
+                            st.session_state.fixtures = matches
+                        elif "Knockout" in st.session_state.format:
+                            shuffled = st.session_state.teams.copy()
+                            random.shuffle(shuffled)
+                            if len(shuffled) % 2 != 0:
+                                shuffled.append("BYE")
+                            matches = []
+                            for i in range(0, len(shuffled), 2):
+                                if i + 1 < len(shuffled) and shuffled[i] != "BYE" and shuffled[i+1] != "BYE":
+                                    matches.append((shuffled[i], shuffled[i + 1]))
+                            st.session_state.fixtures = matches
+                            st.session_state.knockout_round = 1
+                    
+                    save_data_internal()
+                    st.success("All stats reset!")
+                    safe_rerun()
+            
+            st.markdown("---")
+            
+            # --- DATA MANAGEMENT SECTION ---
+            st.markdown("### 💾 DATA MANAGEMENT")
+            
+            # Download backup
+            with st.expander("📥 DOWNLOAD BACKUP", expanded=False):
+                st.markdown(download_backup(), unsafe_allow_html=True)
+            
+            # Restore backup
+            with st.expander("📤 RESTORE BACKUP", expanded=False):
+                uploaded_file = st.file_uploader("Choose backup file", type=['json'], key="backup_uploader")
+                if uploaded_file is not None:
+                    if st.button("🔄 RESTORE FROM BACKUP", key="restore_backup_btn", type="secondary"):
+                        success, message = restore_backup(uploaded_file)
+                        if success:
+                            st.success(message)
+                            safe_rerun()
+                        else:
+                            st.error(message)
+            
+            # Factory reset
+            with st.expander("⚙️ FACTORY RESET", expanded=False):
+                st.error("⚠️ **DANGER ZONE** ⚠️")
+                st.warning("This will delete ALL data including teams!")
+                confirm = st.text_input("Type 'DELETE ALL' to confirm", key="factory_reset_confirm")
+                if st.button("💣 FACTORY RESET", key="factory_reset_btn", type="secondary"):
+                    if confirm == "DELETE ALL":
+                        if factory_reset():
+                            st.success("All data reset!")
+                            safe_rerun()
+                    else:
+                        st.error("Please type 'DELETE ALL' to confirm")
+            
+            st.markdown("---")
+            
+            # Tournament-specific controls (Manager only)
+            if st.session_state.started and not st.session_state.champion:
+                st.markdown("### ⚙️ TOURNAMENT CONTROLS")
+                
+                if "World Cup" in st.session_state.format:
+                    if st.session_state.world_cup_stage == "Group Stage":
+                        if st.button("🏆 ADVANCE TO KNOCKOUT STAGE", key="advance_world_cup_btn"):
+                            advance_world_cup_knockout()
+                    else:
+                        if st.button("⚽ ADVANCE TO NEXT ROUND", key="advance_knockout_btn"):
+                            advance_knockout_tournament()
+                elif "Knockout" in st.session_state.format:
+                    if st.button("⚽ ADVANCE TO NEXT ROUND", key="advance_classic_knockout_btn"):
+                        advance_knockout_tournament()
+                elif "Survival" in st.session_state.format:
+                    if st.button("⏩ EXECUTE ELIMINATION", key="execute_elim_btn"): 
+                        st.toast("Processing Elimination...", icon="💀")
+                        handle_battle_royale_elimination()
+            
+            st.markdown("---")
+            
+            # Debug tools (Manager only)
+            st.markdown("### 🐛 DEBUG TOOLS")
+            
+            if st.button("🔄 Refresh View", key="refresh_view_btn"):
+                safe_rerun()
+            
+            if st.button("🔍 Check Data Consistency", key="check_consistency_btn"):
+                mismatches, recalculated = verify_data_consistency()
+                if mismatches:
+                    st.error(f"Found {len(mismatches)} mismatches!")
+                    for m in mismatches[:3]:  # Show first 3
+                        st.write(f"{m['team']}: {m['key']} - Stored: {m['stored']}, Calculated: {m['calculated']}")
+                    
+                    if st.button("🔄 Fix All Mismatches", key="fix_mismatches_btn"):
+                        for team, stats in recalculated.items():
+                            st.session_state.cumulative_stats[team] = stats
+                        save_data_internal()
+                        st.success("Fixed all mismatches!")
+                        safe_rerun()
+                else:
+                    st.success("All data is consistent! ✅")
+            
+            if st.button("📊 Show System Info", key="show_system_info_btn"):
+                st.write("**System Status:**")
+                st.write(f"- Teams: {len(st.session_state.teams)}")
+                st.write(f"- Active Teams: {len(st.session_state.active_teams)}")
+                st.write(f"- Pending Reports: {len(st.session_state.pending_reports)}")
+                st.write(f"- Captain Logs: {len(st.session_state.captain_logs)}")
+                
+                with st.expander("View Captain Logs", expanded=False):
+                    for log in st.session_state.captain_logs[-10:]:  # Last 10 logs
+                        st.write(f"{log['timestamp']}: {log['action']}")
+            
+            if st.button("🔒 LOGOUT", key="logout_btn"):
+                st.session_state.admin_unlock = False
+                save_data_internal()
+                safe_rerun()
+    
+    else:
+        # CAPTAIN MODE
+        st.markdown("### 🧢 CAPTAIN LOGIN")
+        
+        if not st.session_state.captain_pin_verified:
+            # Team selection
+            available_teams = [t for t in st.session_state.teams if t in st.session_state.active_teams or not st.session_state.started]
+            if available_teams:
+                selected_team = st.selectbox("SELECT YOUR TEAM", ["Select..."] + available_teams, key="captain_team_select")
+                
+                if selected_team != "Select...":
+                    # PIN input
+                    pin_input = st.text_input("ENTER CAPTAIN PIN", type="password", key="captain_pin_input")
+                    
+                    if st.button("LOGIN AS CAPTAIN", key="captain_login_btn"):
+                        if selected_team in st.session_state.captain_pins:
+                            if pin_input == st.session_state.captain_pins[selected_team]:
+                                st.session_state.logged_in_captain = selected_team
+                                st.session_state.captain_pin_verified = True
+                                log_captain_action("Logged in as captain", selected_team)
+                                save_data_internal()
+                                st.success(f"Welcome, Captain of {selected_team}!")
+                                safe_rerun()
+                            else:
+                                st.error("Incorrect PIN!")
+                        else:
+                            st.error("Team not found!")
+            else:
+                st.info("No teams available yet.")
+        
+        if st.session_state.captain_pin_verified and st.session_state.logged_in_captain:
+            st.success(f"Logged in as: {st.session_state.logged_in_captain}")
+            
+            with st.expander("📋 YOUR CREDENTIALS", expanded=False):
+                st.info(f"**Team:** {st.session_state.logged_in_captain}")
+                st.warning(f"**Captain PIN:** `{st.session_state.captain_pins[st.session_state.logged_in_captain]}`")
+                st.caption("Keep this PIN safe! You'll need it to log in.")
+            
+            if st.button("🚪 LOGOUT", key="captain_logout_btn"):
+                log_captain_action("Logged out", st.session_state.logged_in_captain)
+                st.session_state.logged_in_captain = None
+                st.session_state.captain_pin_verified = False
+                save_data_internal()
+                safe_rerun()
+
+# --- 🎮 MAIN INTERFACE ---
+if not st.session_state.started:
+    # PRE-SEASON LOBBY
+    st.markdown(f"<div class='glass-panel captain-portal' style='text-align:center'><h2>🧢 TOURNAMENT LOBBY</h2><p>Register your team before the season starts</p></div>", unsafe_allow_html=True)
+    
+    # Tournament Code Display
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.markdown(f"""
+        <div class='glass-panel' style='text-align:center'>
+            <h3>📋 TOURNAMENT INFO</h3>
+            <p><strong>Tournament Code:</strong> <code>{st.session_state.tournament_code}</code></p>
+            <p>Share this code with your friends to join!</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Team Registration Section
+    st.markdown("### 🏆 REGISTER YOUR TEAM")
+    
+    reg_col1, reg_col2 = st.columns(2)
+    
+    with reg_col1:
+        st.markdown("""
+        #### 📝 HOW TO JOIN:
+        1. **Enter Tournament Code** below
+        2. **Choose a Team Name** (unique)
+        3. Click **"REGISTER TEAM"**
+        4. **SAVE YOUR CREDENTIALS** when they appear!
+        """)
+    
+    with reg_col2:
+        # Tournament code verification
+        entered_code = st.text_input("ENTER TOURNAMENT CODE", key="tournament_code_input")
+        
+        if entered_code == st.session_state.tournament_code or st.session_state.admin_unlock:
+            # Team registration form
+            new_team_name = st.text_input("TEAM NAME", key="new_team_name_input")
+            
+            if st.button("🚀 REGISTER TEAM", key="register_team_btn"):
+                if new_team_name and new_team_name not in st.session_state.teams:
+                    # Add team with captain credentials
+                    credentials_msg, pin, password = add_team_with_captain(new_team_name)
+                    
+                    if credentials_msg:
+                        save_data_internal()
+                        
+                        # Show credentials in an expander
+                        with st.expander("✅ REGISTRATION SUCCESSFUL - SAVE THESE!", expanded=True):
+                            st.markdown(credentials_msg)
+                        
+                        st.success(f"Team '{new_team_name}' registered!")
+                        safe_rerun()
+                elif new_team_name in st.session_state.teams:
+                    st.error("Team name already taken!")
+        elif entered_code and entered_code != st.session_state.tournament_code:
+            st.error("Incorrect tournament code!")
+    
+    # Show registered teams
+    if st.session_state.teams:
+        st.markdown("### 📊 REGISTERED TEAMS")
+        cols = st.columns(4)
+        for i, t in enumerate(st.session_state.teams):
+            b = st.session_state.team_badges.get(t, "🛡️")
+            with cols[i % 4]:
+                st.markdown(f"""
+                <div class='glass-panel' style='text-align:center'>
+                    <h1>{b}</h1>
+                    <h3>{t}</h3>
+                    <small>PIN: {st.session_state.captain_pins.get(t, 'N/A')}</small>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    # Manager-only section for starting tournament
+    if st.session_state.admin_unlock:
+        st.markdown("---")
+        st.markdown("### ⚙️ MANAGER CONTROLS")
+        
+        fmt = st.radio("SELECT TOURNAMENT FORMAT", 
+                      ["Home & Away League", "World Cup (Groups + Knockout)", 
+                       "Classic Knockout", "Survival Mode (Battle Royale)"], 
+                      horizontal=True, key="format_radio")
+        
+        if st.button("🚀 START SEASON", key="init_season_btn"):
+            if len(st.session_state.teams) < 2:
+                st.error("Need at least 2 teams to start!")
+            else:
+                st.session_state.format = fmt
+                st.session_state.active_teams = st.session_state.teams.copy()
+                
+                if "Survival" in fmt:
+                    st.session_state.current_round = "Round 1"
+                    st.session_state.eliminated_teams = []
+                    st.session_state.round_number = 1
+                    st.session_state.survival_history = []
+                    st.session_state.battle_phase = "Phase 1: The Purge"
+                    st.session_state.bye_team = None
+                    st.session_state.cumulative_stats = {}
+                    st.session_state.cumulative_player_stats = {}
+                    st.session_state.sudden_death_round = 0
+                    st.session_state.phase1_match_count = 2
+                    
+                    # Initialize cumulative stats for all teams
+                    for team in st.session_state.teams:
+                        st.session_state.cumulative_stats[team] = {
+                            'P': 0, 'W': 0, 'D': 0, 'L': 0, 
+                            'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0
+                        }
+                    
+                    matches = generate_fixtures_for_phase(st.session_state.teams, "Phase 1: The Purge")
+                    st.session_state.fixtures = matches
+                    st.session_state.current_round = f"Round 1 • {st.session_state.battle_phase}"
+                    
+                    st.success(f"💀 BATTLE ROYALE INITIALIZED! 2 matches per team.")
+                
+                elif "League" in fmt: 
+                    matches = list(itertools.permutations(st.session_state.teams, 2))
+                    random.shuffle(matches)
+                    st.session_state.fixtures = matches
+                    st.session_state.current_round = "League Phase"
+                    st.success("🏆 League initialized! Home & Away format.")
+                
+                elif "World Cup" in fmt:
+                    shuffled = st.session_state.teams.copy()
+                    random.shuffle(shuffled)
+                    groups = {}
+                    group_names = "ABCDEFGHIJKLMNOP"
+                    
+                    # Create groups of 4 (or as close as possible)
+                    group_size = 4
+                    num_groups = max(1, (len(shuffled) + group_size - 1) // group_size)
+                    
+                    for i in range(num_groups):
+                        group_teams = shuffled[i*group_size:(i+1)*group_size]
+                        groups[group_names[i]] = group_teams
+                    
+                    st.session_state.groups = groups
+                    matches = []
+                    
+                    # Generate group stage matches
+                    for g, teams in groups.items():
+                        matches.extend(list(itertools.combinations(teams, 2)))
+                    
+                    st.session_state.fixtures = matches
+                    st.session_state.world_cup_stage = "Group Stage"
+                    st.session_state.current_round = "Group Stage"
+                    st.success(f"🌍 World Cup initialized! {len(groups)} groups created.")
+                
+                elif "Knockout" in fmt:
+                    shuffled = st.session_state.teams.copy()
+                    random.shuffle(shuffled)
+                    
+                    # Ensure even number of teams
+                    if len(shuffled) % 2 != 0:
+                        shuffled.append("BYE")
+                    
+                    matches = []
+                    for i in range(0, len(shuffled), 2):
+                        if i + 1 < len(shuffled) and shuffled[i] != "BYE" and shuffled[i+1] != "BYE":
+                            matches.append((shuffled[i], shuffled[i + 1]))
+                    
+                    st.session_state.fixtures = matches
+                    st.session_state.knockout_round = 1
+                    st.session_state.current_round = "Round 1"
+                    st.success("🎯 Knockout tournament initialized! Single elimination.")
+                
+                st.session_state.started = True
+                save_data_internal()
+                st.balloons()
+                safe_rerun()
+
+else:
+    # SEASON IN PROGRESS
+    
+    # Battle News Section (for Survival mode)
+    if "Survival" in st.session_state.format:
+        st.markdown("### 📰 BATTLE NEWS")
+        
+        # Current status metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Teams Alive", len(st.session_state.active_teams))
+        with col2:
+            st.metric("Round", st.session_state.round_number)
+        with col3:
+            st.metric("Eliminated", len(st.session_state.eliminated_teams))
+        with col4:
+            st.metric("Phase", st.session_state.battle_phase.split(":")[0])
+        
+        # Survival progress bar
+        total_teams = len(st.session_state.teams)
+        remaining_teams = len(st.session_state.active_teams)
+        if total_teams > 0:
+            survival_percent = (remaining_teams / total_teams) * 100
+            
+            st.markdown(f"**SURVIVAL PROGRESS:** {remaining_teams}/{total_teams} teams remaining ({survival_percent:.1f}%)")
+            progress_html = f"""
+            <div class="progress-container">
+                <div class="progress-bar" style="width: {survival_percent}%">
+                    {remaining_teams}/{total_teams}
+                </div>
+            </div>
+            """
+            st.markdown(progress_html, unsafe_allow_html=True)
+        
+        # News feed
+        if st.session_state.news:
+            st.markdown("#### 📋 RECENT EVENTS")
+            news_container = st.container()
+            with news_container:
+                for i, news_item in enumerate(st.session_state.news[:10]):  # Show last 10 news items
+                    st.markdown(f"""
+                    <div class="news-item">
+                        {news_item}
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+    
+    # Pending reports approval section (Manager only)
+    if st.session_state.admin_unlock and st.session_state.pending_reports:
+        st.markdown("### ⏳ PENDING REPORTS")
+        
+        for report in st.session_state.pending_reports:
+            with st.container():
+                st.markdown(f"""
+                <div class='glass-panel pending-report'>
+                    <h4>📋 Match Report Pending Approval</h4>
+                    <p><strong>{report['home_team']} {report['home_score']}-{report['away_score']} {report['away_team']}</strong></p>
+                    <p><small>Submitted by: {report['submitted_by']} at {report['submitted_at'][:16].replace('T', ' ')}</small></p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                col1, col2, col3 = st.columns([2,1,1])
+                
+                with col1:
+                    with st.expander("📊 View Details", expanded=False):
+                        st.write(f"**Home Scorers:** {report['home_scorers'] or 'None'}")
+                        st.write(f"**Away Scorers:** {report['away_scorers'] or 'None'}")
+                        st.write(f"**Home Assists:** {report['home_assists'] or 'None'}")
+                        st.write(f"**Away Assists:** {report['away_assists'] or 'None'}")
+                        if report['home_pens'] > 0 or report['away_pens'] > 0:
+                            st.write(f"**Penalties:** {report['home_pens']}-{report['away_pens']}")
+                
+                with col2:
+                    if st.button(f"✅ APPROVE", key=f"approve_{report['report_id']}"):
+                        if approve_match_report(report['report_id']):
+                            save_data_internal()
+                            st.success("Report approved!")
+                            safe_rerun()
+                
+                with col3:
+                    if st.button(f"❌ REJECT", key=f"reject_{report['report_id']}"):
+                        if reject_match_report(report['report_id']):
+                            save_data_internal()
+                            st.warning("Report rejected!")
+                            safe_rerun()
+        
+        st.markdown("---")
+    
+    # Determine tabs based on format and user mode
+    if st.session_state.user_mode == "Captain" and st.session_state.captain_pin_verified:
+        # Captain view - simplified interface
+        captain_team = st.session_state.logged_in_captain
+        st.markdown(f"<div class='glass-panel captain-portal'><h2>🧢 CAPTAIN'S PORTAL - {captain_team}</h2><p>Manage your team's matches and reports</p></div>", unsafe_allow_html=True)
+        
+        # Captain's matches
+        st.markdown("### ⚽ YOUR MATCHES")
+        
+        captain_matches = []
+        for i, fix in enumerate(st.session_state.fixtures):
+            if len(fix) < 2:
+                continue
+            h, a = fix[0], fix[1]
+            if captain_team in [h, a]:
+                captain_matches.append((i, h, a))
+        
+        if not captain_matches:
+            st.info("No matches scheduled for your team yet.")
+        else:
+            for i, h, a in captain_matches:
+                mid = f"{h}v{a}_{i}"
+                res = st.session_state.results.get(mid)
+                
+                with st.container():
+                    st.markdown(f"<div class='glass-panel'>", unsafe_allow_html=True)
+                    
+                    col1, col2, col3 = st.columns([4,2,4])
+                    b1 = st.session_state.team_badges.get(h, ""); b2 = st.session_state.team_badges.get(a, "")
+                    
+                    # Match display
+                    col1.markdown(f"<h3 style='text-align:right'>{h} {b1}</h3>", unsafe_allow_html=True)
+                    col3.markdown(f"<h3 style='text-align:left'>{b2} {a}</h3>", unsafe_allow_html=True)
+                    
+                    if res:
+                        score = f"{res[0]} - {res[1]}"
+                        if len(res) > 2:
+                            score += f"\n(P: {res[2]}-{res[3]})"
+                        col2.markdown(f"<h1 style='text-align:center; color:#F1E194'>{score}</h1>", unsafe_allow_html=True)
+                        col2.success("✅ Match completed")
+                    else:
+                        col2.markdown(f"<h1 style='text-align:center; color:#946c1e'>VS</h1>", unsafe_allow_html=True)
+                        
+                        # Captain reporting form
+                        expander_title = f"📝 SUBMIT MATCH REPORT"
+                        with st.expander(expander_title, expanded=False):
+                            st.warning("Your report will be sent for manager approval")
+                            
+                            # Determine if captain's team is home or away
+                            is_home = h == captain_team
+                            
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                if is_home:
+                                    s1 = st.number_input(f"{h} Score", 0, 20, key=f"cap_s1_{mid}")
+                                    s2 = st.number_input(f"{a} Score", 0, 20, key=f"cap_s2_{mid}")
+                                else:
+                                    s2 = st.number_input(f"{h} Score", 0, 20, key=f"cap_s2_{mid}")
+                                    s1 = st.number_input(f"{a} Score", 0, 20, key=f"cap_s1_{mid}")
+                            
+                            # Penalties for knockout/draws
+                            p1, p2 = 0, 0
+                            show_pens = (s1 == s2 and "League" not in st.session_state.format)
+                            
+                            if show_pens:
+                                st.caption("Penalties (if tied)")
+                                pcol1, pcol2 = st.columns(2)
+                                with pcol1:
+                                    if is_home:
+                                        p1 = st.number_input(f"{h} Pens", 0, 20, key=f"cap_p1_{mid}")
+                                    else:
+                                        p2 = st.number_input(f"{h} Pens", 0, 20, key=f"cap_p2_{mid}")
+                                with pcol2:
+                                    if is_home:
+                                        p2 = st.number_input(f"{a} Pens", 0, 20, key=f"cap_p2_{mid}")
+                                    else:
+                                        p1 = st.number_input(f"{a} Pens", 0, 20, key=f"cap_p1_{mid}")
+                            
+                            # Player stats
+                            st.caption("Player Statistics")
+                            scol1, scol2 = st.columns(2)
+                            
+                            with scol1:
+                                if is_home:
+                                    gs = st.text_input("Your Scorers", key=f"cap_gs_{mid}", placeholder="Messi (2), Ronaldo, ...")
+                                    ha = st.text_input("Your Assists", key=f"cap_ha_{mid}")
+                                    hr = st.text_input("Your Red Cards", key=f"cap_hr_{mid}")
+                                else:
+                                    gs = st.text_input("Opponent Scorers", key=f"cap_gs_{mid}")
+                                    ha = st.text_input("Opponent Assists", key=f"cap_ha_{mid}")
+                                    hr = st.text_input("Opponent Red Cards", key=f"cap_hr_{mid}")
+                            
+                            with scol2:
+                                if is_home:
+                                    gs_opp = st.text_input("Opponent Scorers", key=f"cap_gs_opp_{mid}")
+                                    ha_opp = st.text_input("Opponent Assists", key=f"cap_ha_opp_{mid}")
+                                    hr_opp = st.text_input("Opponent Red Cards", key=f"cap_hr_opp_{mid}")
+                                else:
+                                    gs_opp = st.text_input("Your Scorers", key=f"cap_gs_opp_{mid}", placeholder="Messi (2), Ronaldo, ...")
+                                    ha_opp = st.text_input("Your Assists", key=f"cap_ha_opp_{mid}")
+                                    hr_opp = st.text_input("Your Red Cards", key=f"cap_hr_opp_{mid}")
+                            
+                            if st.button("📨 SUBMIT FOR APPROVAL", key=f"cap_submit_{mid}"):
+                                # Prepare report
+                                if is_home:
+                                    report = submit_match_report(mid, h, a, s1, s2, gs, gs_opp, ha, ha_opp, hr, hr_opp, p1, p2, captain_team)
+                                else:
+                                    report = submit_match_report(mid, h, a, s2, s1, gs_opp, gs, ha_opp, ha, hr_opp, hr, p2, p1, captain_team)
+                                
+                                save_data_internal()
+                                st.success("✅ Report submitted! Awaiting manager approval.")
+                                safe_rerun()
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Captain's team info
+        st.markdown("### 📊 YOUR TEAM STATS")
+        
+        if captain_team in st.session_state.cumulative_stats:
+            stats = st.session_state.cumulative_stats[captain_team]
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Matches", stats['P'])
+            col2.metric("Points", stats['Pts'])
+            col3.metric("Goal Diff", stats['GD'])
+            col4.metric("Position", "—")  # Could calculate position
+        
+        # Tournament info for captain
+        st.markdown("### 🏆 TOURNAMENT INFO")
+        st.info(f"**Format:** {st.session_state.format}")
+        st.info(f"**Current Round:** {st.session_state.current_round}")
+        
+        if "Survival" in st.session_state.format:
+            st.warning("💀 **Battle Royale Mode:** Points carry over between rounds!")
+    
+    else:
+        # Manager or public view - full interface
+        
+        # Determine tabs based on format
+        if "World Cup" in st.session_state.format and st.session_state.world_cup_stage == "Group Stage":
+            tab_names = ["🏆 GROUPS", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO"]
+        elif "World Cup" in st.session_state.format:
+            tab_names = ["📊 KNOCKOUT", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO"]
+        elif "Knockout" in st.session_state.format:
+            tab_names = ["📊 BRACKET", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO"]
+        elif "Survival" in st.session_state.format:
+            tab_names = ["📊 CUMULATIVE TABLE", "⚽ MATCH CENTER", "⭐ STATS", "💀 BATTLE INFO"]
+        else:  # League
+            tab_names = ["📊 LEAGUE TABLE", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO"]
+        
+        tabs = st.tabs(tab_names)
+
+        # --- TAB 1: Tables/Brackets ---
+        with tabs[0]:
+            if "World Cup" in st.session_state.format and st.session_state.world_cup_stage == "Group Stage":
+                # Show group tables
+                st.markdown("### 🌍 GROUP STAGE STANDINGS")
+                
+                for group_name, teams in st.session_state.groups.items():
+                    with st.expander(f"Group {group_name}", expanded=True):
+                        # Calculate standings for this group
+                        standings = []
+                        
+                        for team in teams:
+                            stats = {'Team': team, 'P': 0, 'W': 0, 'D': 0, 'L': 0, 'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0}
+                            
+                            # Calculate stats from group matches
+                            for mid, res in st.session_state.results.items():
+                                try:
+                                    if "_" in mid:
+                                        base = mid.split('_')[0]
+                                    else:
+                                        base = mid
+                                    
+                                    if "v" in base:
+                                        h, a = base.split('v')
+                                    else:
+                                        continue
+                                except:
+                                    continue
+                                
+                                # Check if this match involves our team
+                                if h == team or a == team:
+                                    # Check if both teams are in the same group
+                                    other_team = a if h == team else h
+                                    if other_team in teams:
+                                        is_home = h == team
+                                        s_h, s_a = res[0], res[1]
+                                        
+                                        stats['P'] += 1
+                                        stats['GF'] += s_h if is_home else s_a
+                                        stats['GA'] += s_a if is_home else s_h
+                                        stats['GD'] += (s_h - s_a) if is_home else (s_a - s_h)
+                                        
+                                        if is_home:
+                                            if s_h > s_a:
+                                                stats['W'] += 1
+                                                stats['Pts'] += 3
+                                            elif s_a > s_h:
+                                                stats['L'] += 1
+                                            else:
+                                                stats['D'] += 1
+                                                stats['Pts'] += 1
+                                        else:
+                                            if s_a > s_h:
+                                                stats['W'] += 1
+                                                stats['Pts'] += 3
+                                            elif s_h > s_a:
+                                                stats['L'] += 1
+                                            else:
+                                                stats['D'] += 1
+                                                stats['Pts'] += 1
+                            
+                            standings.append(stats)
+                        
+                        # Sort standings
+                        standings.sort(key=lambda x: (x['Pts'], x['GD'], x['GF']), reverse=True)
+                        
+                        # Display table
+                        rows = []
+                        for idx, s in enumerate(standings):
+                            badge = st.session_state.team_badges.get(s['Team'], "🛡️")
+                            rows.append({
+                                "#": idx + 1,
+                                "Team": f"{badge} {s['Team']}",
+                                "P": s['P'], "W": s['W'], "D": s['D'], "L": s['L'], 
+                                "GF": s['GF'], "GA": s['GA'], "GD": s['GD'], 
+                                "Pts": s['Pts']
+                            })
+                        
+                        if rows:
+                            df = pd.DataFrame(rows)
+                            st.dataframe(df[['#', 'Team', 'P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts']], 
+                                       hide_index=True, use_container_width=True,
+                                       column_config={
+                                           "#": st.column_config.NumberColumn(width="small"),
+                                           "Pts": st.column_config.ProgressColumn("Pts", format="%d", min_value=0, max_value=max(6, df['Pts'].max()))
+                                       })
+            
+            elif "World Cup" in st.session_state.format or "Knockout" in st.session_state.format:
+                # Show knockout bracket
+                st.markdown("### 🎯 KNOCKOUT BRACKET")
+                
+                if st.session_state.fixtures:
+                    col1, col2 = st.columns(2)
+                    
+                    for i, match in enumerate(st.session_state.fixtures):
+                        if len(match) < 2:
+                            continue
+                        
+                        h, a = match[0], match[1]
+                        mid = f"{h}v{a}_{i}"
+                        res = st.session_state.results.get(mid)
+                        
+                        with col1 if i % 2 == 0 else col2:
+                            match_html = f"""
+                            <div class='bracket-match'>
+                                <strong>{h}</strong> vs <strong>{a}</strong><br>
+                                {f"<strong>{res[0]} - {res[1]}</strong>" if res else "Not played"}
+                                {f" (P: {res[2]}-{res[3]})" if res and len(res) > 2 else ""}
+                            </div>
+                            """
+                            st.markdown(match_html, unsafe_allow_html=True)
+                    
+                    # Show tournament progress
+                    if st.session_state.champion:
+                        st.success(f"🏆 **CHAMPION: {st.session_state.champion}**")
+                    else:
+                        round_names = {
+                            8: "Quarter Finals",
+                            4: "Semi Finals",
+                            2: "Final"
+                        }
+                        current_round = round_names.get(len(st.session_state.fixtures), f"Round {st.session_state.knockout_round}")
+                        st.info(f"**Current Stage:** {current_round}")
+                        
+                        # Show remaining teams
+                        remaining_teams = set()
+                        for match in st.session_state.fixtures:
+                            if len(match) >= 2:
+                                remaining_teams.add(match[0])
+                                remaining_teams.add(match[1])
+                        
+                        if remaining_teams:
+                            st.markdown(f"**Teams Remaining:** {', '.join(sorted(remaining_teams))}")
+            
+            elif "Survival" in st.session_state.format:
+                # Battle Royale table
+                def render_battle_royale_table():
+                    standings = get_cumulative_standings()
+                    
+                    if not standings:
+                        st.info("No teams remaining")
+                        return
+                    
+                    standings.sort(key=lambda x: (x['Pts'], x['GD'], x['GF']), reverse=True)
+                    
+                    rows = []
+                    for idx, s in enumerate(standings):
+                        team = s['Team']
+                        badge = st.session_state.team_badges.get(team, "🛡️")
+                        
+                        row_class = ""
+                        if st.session_state.battle_phase == "Phase 1: The Purge" and idx >= len(standings) - 2:
+                            row_class = "drop-zone"
+                        elif st.session_state.battle_phase == "Phase 2: The Squeeze" and idx == len(standings) - 1:
+                            row_class = "drop-zone"
+                        elif st.session_state.bye_team == team:
+                            row_class = "bye-zone"
+                        
+                        rows.append({
+                            "#": idx + 1,
+                            "Club": f"{badge} {team}",
+                            "P": s['P'], "W": s['W'], "D": s['D'], "L": s['L'], 
+                            "GF": s['GF'], "GA": s['GA'], "GD": s['GD'], 
+                            "Pts": s['Pts']
+                        })
+                    
+                    if rows:
+                        df = pd.DataFrame(rows)
+                        
+                        st.markdown(f"**Teams Alive:** {len(st.session_state.active_teams)} | **Current Phase:** {st.session_state.battle_phase}")
+                        
+                        if st.session_state.battle_phase == "Phase 1: The Purge":
+                            st.warning(f"⚠️ **DROP ZONE:** Bottom 2 teams will be eliminated after this round! (2 matches each)")
+                        elif st.session_state.battle_phase == "Phase 2: The Squeeze":
+                            st.warning(f"⚠️ **DROP ZONE:** Bottom team will be eliminated after this round! (2 matches each)")
+                        elif st.session_state.battle_phase == "Phase 3: The Standoff":
+                            st.info(f"👑 **BYE:** {st.session_state.bye_team} gets automatic pass to Final!")
+                            st.warning(f"⚔️ **SUDDEN DEATH:** 2nd vs 3rd playing elimination match!")
+                        
+                        st.dataframe(df[['#', 'Club', 'P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts']], 
+                                   hide_index=True, use_container_width=True,
+                                   column_config={
+                                       "#": st.column_config.NumberColumn(width="small"),
+                                       "Pts": st.column_config.ProgressColumn("Pts", format="%d", min_value=0, max_value=max(100, df['Pts'].max()))
+                                   })
+                        
+                        # Show eliminated teams
+                        if st.session_state.eliminated_teams:
+                            with st.expander(f"☠️ Eliminated Teams ({len(st.session_state.eliminated_teams)})", expanded=False):
+                                elim_data = []
+                                for e in st.session_state.eliminated_teams:
+                                    elim_data.append({
+                                        "Team": e['team'],
+                                        "Round": e['round'],
+                                        "Phase": e['phase'],
+                                        "Position": f"{e['position']}th"
+                                    })
+                                if elim_data:
+                                    elim_df = pd.DataFrame(elim_data)
+                                    st.dataframe(elim_df, hide_index=True, use_container_width=True)
+                
+                render_battle_royale_table()
+            
+            else:  # League format
+                def render_league_table():
+                    standings = get_cumulative_standings()
+                    
+                    if not standings:
+                        st.info("No teams in league")
+                        return
+                    
+                    standings.sort(key=lambda x: (x['Pts'], x['GD'], x['GF']), reverse=True)
+                    
+                    rows = []
+                    for idx, s in enumerate(standings):
+                        team = s['Team']
+                        badge = st.session_state.team_badges.get(team, "🛡️")
+                        
+                        rows.append({
+                            "#": idx + 1,
+                            "Club": f"{badge} {team}",
+                            "P": s['P'], "W": s['W'], "D": s['D'], "L": s['L'], 
+                            "GF": s['GF'], "GA": s['GA'], "GD": s['GD'], 
+                            "Pts": s['Pts']
+                        })
+                    
+                    if rows:
+                        df = pd.DataFrame(rows)
+                        st.dataframe(df[['#', 'Club', 'P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts']], 
+                                   hide_index=True, use_container_width=True,
+                                   column_config={
+                                       "#": st.column_config.NumberColumn(width="small"),
+                                       "Pts": st.column_config.ProgressColumn("Pts", format="%d", min_value=0, max_value=max(100, df['Pts'].max()))
+                                   })
+                
+                render_league_table()
+
+        # --- TAB 2: Match Center ---
+        with tabs[1]:
+            # Team filter
+            filter_options = ["All"] + st.session_state.active_teams
+            if st.session_state.user_mode == "Captain" and st.session_state.captain_pin_verified:
+                filter_team = st.session_state.logged_in_captain
+            else:
+                filter_team = st.selectbox("FILTER TEAM", filter_options, key="team_filter")
+            
+            # Display matches
+            for i, fix in enumerate(st.session_state.fixtures): 
+                if len(fix) < 2: continue
+                h, a = fix[0], fix[1]
+                
+                if filter_team != "All" and filter_team not in [h, a]: continue
+                
+                mid = f"{h}v{a}_{i}" 
+                res = st.session_state.results.get(mid)
+                
+                is_sudden_death = (
+                    st.session_state.battle_phase == "Phase 3: The Standoff" and 
+                    st.session_state.sudden_death_round > 0
+                )
+                
+                with st.container():
+                    panel_class = "glass-panel"
+                    if is_sudden_death:
+                        panel_class += " sudden-death"
+                    
+                    st.markdown(f"<div class='{panel_class}'>", unsafe_allow_html=True)
+                    c1, c2, c3 = st.columns([4, 2, 4])
+                    b1 = st.session_state.team_badges.get(h, ""); b2 = st.session_state.team_badges.get(a, "")
+                    
+                    # Match header
+                    if is_sudden_death:
+                        c1.markdown(f"<h3 style='text-align:right; color:#ff6b6b'>{h} {b1}</h3>", unsafe_allow_html=True)
+                        c3.markdown(f"<h3 style='text-align:left; color:#ff6b6b'>{b2} {a}</h3>", unsafe_allow_html=True)
+                        c2.markdown(f"<div style='text-align:center'><small>⚔️ SUDDEN DEATH • Leg {st.session_state.sudden_death_round}</small></div>", unsafe_allow_html=True)
+                    else:
+                        c1.markdown(f"<h3 style='text-align:right'>{h} {b1}</h3>", unsafe_allow_html=True)
+                        c3.markdown(f"<h3 style='text-align:left'>{b2} {a}</h3>", unsafe_allow_html=True)
+                    
+                    # Score display
+                    if res:
+                        sc = f"{res[0]} - {res[1]}"
+                        if len(res) > 2: sc += f"\n(P: {res[2]}-{res[3]})"
+                        score_color = "#ef4444" if is_sudden_death else "#F1E194"
+                        c2.markdown(f"<h1 style='text-align:center; color:{score_color}'>{sc}</h1>", unsafe_allow_html=True)
+                    else: 
+                        if is_sudden_death:
+                            c2.markdown(f"<h1 style='text-align:center; color:#ef4444'>⚔️ VS ⚔️</h1>", unsafe_allow_html=True)
+                        else:
+                            c2.markdown(f"<h1 style='text-align:center; color:#946c1e'>VS</h1>", unsafe_allow_html=True)
+                    
+                    # Match reporting (Manager only or direct entry)
+                    if st.session_state.admin_unlock and not st.session_state.champion: 
+                        expander_title = f"📝 ENTER RESULT"
+                        with st.expander(expander_title, expanded=False):
+                            if is_sudden_death:
+                                st.warning("⚔️ **SUDDEN DEATH SEMI-FINAL:** Loser is ELIMINATED!")
+                            
+                            ac1, ac2 = st.columns(2)
+                            s1 = ac1.number_input(f"{h}", 0, 20, key=f"s1_{mid}") 
+                            s2 = ac2.number_input(f"{a}", 0, 20, key=f"s2_{mid}") 
+                            p1, p2 = 0, 0
+                            
+                            # Show penalties for knockout matches or draws in non-league
+                            show_pens = (s1 == s2 and "League" not in st.session_state.format) or is_sudden_death
+                            
+                            if show_pens:
+                                st.caption("Penalties (if tied)")
+                                p1 = ac1.number_input(f"P {h}", 0, 20, key=f"p1_{mid}")
+                                p2 = ac2.number_input(f"P {a}", 0, 20, key=f"p2_{mid}")
+
+                            sc1, sc2 = st.columns(2)
+                            prev = st.session_state.match_meta.get(mid, {})
+                            gs1 = sc1.text_input("Scorers (Home)", value=prev.get('h_s',''), key=f"g1_{mid}", placeholder="Messi (2), ...")
+                            gs2 = sc2.text_input("Scorers (Away)", value=prev.get('a_s',''), key=f"g2_{mid}")
+                            ha = sc1.text_input("Assists (Home)", value=prev.get('h_a',''), key=f"ah_{mid}")
+                            aa = sc2.text_input("Assists (Away)", value=prev.get('a_a',''), key=f"aa_{mid}")
+                            hr = sc1.text_input("Red Cards (Home)", value=prev.get('h_r',''), key=f"rh_{mid}")
+                            ar = sc2.text_input("Red Cards (Away)", value=prev.get('a_r',''), key=f"ra_{mid}")
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("✅ CONFIRM RESULT", key=f"b_{mid}"):
+                                    # Use the safe update function
+                                    update_match_result_safely(mid, h, a, s1, s2, p1, p2, gs1, gs2, ha, aa, hr, ar)
+                                    
+                                    save_data_internal()
+                                    st.success("✅ Match recorded! Table updated.")
+                                    safe_rerun()
+                            
+                            with col2:
+                                if res and st.button("🔄 RESET MATCH", key=f"reset_{mid}"):
+                                    if reset_match_result(mid):
+                                        save_data_internal()
+                                        st.warning("Match reset!")
+                                        safe_rerun()
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+        # --- TAB 3: Stats ---
+        with tabs[2]:
+            # Get cumulative player stats
+            player_stats = st.session_state.cumulative_player_stats
+            
+            if player_stats:
+                # Convert to list for display
+                data = []
+                for player_id, stats in player_stats.items():
+                    if isinstance(stats, dict):
+                        data.append({
+                            "Player": stats.get('Name', 'Unknown'),
+                            "Club": stats.get('Team', 'Unknown'),
+                            "Goals": stats.get('G', 0),
+                            "Assists": stats.get('A', 0),
+                            "Reds": stats.get('R', 0)
+                        })
+                
+                if data:
+                    df = pd.DataFrame(data)
+                    
+                    # Show Golden Boot and Playmaker leaders
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if not df.empty:
+                            top_scorer = df.sort_values(by='Goals', ascending=False).iloc[0]
+                            st.markdown(f"<div class='glass-panel' style='text-align:center'><h3>👑 GOLDEN BOOT</h3><h2 class='golden-boot'>{top_scorer['Player']} ({top_scorer['Club']}) - {top_scorer['Goals']} goals</h2></div>", unsafe_allow_html=True)
+                    
+                    with col2:
+                        if not df.empty:
+                            top_assister = df.sort_values(by='Assists', ascending=False).iloc[0]
+                            st.markdown(f"<div class='glass-panel' style='text-align:center'><h3>🎯 TOP PLAYMAKER</h3><h2 style='color:#F1E194; font-weight:bold; font-size:1.5rem;'>{top_assister['Player']} ({top_assister['Club']}) - {top_assister['Assists']} assists</h2></div>", unsafe_allow_html=True)
+                    
+                    c1, c2, c3 = st.columns(3)
+                    
+                    def show_stat(col, title, key, icon):
+                        col.markdown(f"#### {icon} {title}")
+                        if not df.empty:
+                            top = df.sort_values(by=key, ascending=False).head(10).reset_index(drop=True)
+                            top.index += 1
+                            col.dataframe(top[['Player', 'Club', key]], use_container_width=True)
+                    
+                    show_stat(c1, "Goals", "Goals", "⚽")
+                    show_stat(c2, "Assists", "Assists", "👟")
+                    show_stat(c3, "Red Cards", "Reds", "🟥")
+                    
+                    # Show total stats
+                    with st.expander("📊 TOTAL TOURNAMENT STATS", expanded=False):
+                        col1, col2, col3, col4 = st.columns(4)
+                        col1.metric("Total Players", len(df))
+                        col2.metric("Total Goals", int(df['Goals'].sum()))
+                        col3.metric("Total Assists", int(df['Assists'].sum()))
+                        col4.metric("Total Red Cards", int(df['Reds'].sum()))
+                else:
+                    st.info("No player stats recorded yet. Report matches to see stats!")
+            else:
+                st.info("No player stats recorded yet. Report matches to see stats!")
+
+        # --- TAB 4: Tournament Info ---
+        with tabs[3]:
+            if "Survival" in st.session_state.format:
+                st.markdown("### 💀 BATTLE ROYALE PROTOCOL")
+                
+                # Protocol Rules
+                with st.expander("📜 THE CORE RULES", expanded=True):
+                    st.markdown("""
+                    **1. The "Cumulative" Table**
+                    - Points carry over FOREVER
+                    - Player stats (goals, assists, reds) also carry over FOREVER
+                    - Win 3-0 in Round 1 → carry 3 points and +3 GD into Round 2
+                    - Strategy: Hoard points to stay safe from the "Drop Zone"
+                    
+                    **2. Matchmaking: Pure RNG**
+                    - No fixed bracket
+                    - After every round, all surviving teams are thrown into a hat and shuffled
+                    - You could play the strongest team twice in a row, or dodge them until the end
+                    - It is pure luck
+                    """)
+                
+                with st.expander("🩸 THE ELIMINATION PHASES", expanded=False):
+                    st.markdown("""
+                    **Phase 1: The Purge (5+ Teams Alive)**
+                    - Bottom 2 teams eliminated EVERY ROUND
+                    - **2 matches per team each round**
+                    - Example: 8 teams → Round 1 → 7th & 8th deleted
+                    
+                    **Phase 2: The Squeeze (4 Teams Alive)**
+                    - Bottom 1 team eliminated per round
+                    - 2 matches per team (home & away)
+                    - You just have to be better than one other person
+                    
+                    **Phase 3: The Standoff (3 Teams Alive)**
+                    - **1st Place**: Gets a BYE (Automatic pass to Grand Final)
+                    - **2nd vs 3rd**: Play "Sudden Death" Semi-Final (2 legs)
+                    - Loser eliminated, Winner advances to Final
+                    
+                    **Phase 4: The Grand Final (2 Teams Alive)**
+                    - Final two survivors play one last match
+                    - Highest points total at the end wins the crown
+                    """)
+                
+                with st.expander("📊 TIE-BREAKERS (How to stay alive)", expanded=False):
+                    st.markdown("""
+                    If teams are level on points near the Drop Zone:
+                    1. **Points** (Highest wins)
+                    2. **Goal Difference** (Better GD wins)
+                    3. **Goals For** (Most goals scored wins)
+                    4. **Head-to-Head** (If applicable)
+                    """)
+                
+                # Current Status
+                st.markdown("### 🎯 CURRENT STATUS")
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("Teams Alive", len(st.session_state.active_teams))
+                with col2:
+                    st.metric("Round", st.session_state.round_number)
+                with col3:
+                    st.metric("Eliminated", len(st.session_state.eliminated_teams))
+                with col4:
+                    st.metric("Phase", st.session_state.battle_phase.split(":")[0])
+            
+            else:
+                # Tournament info for all formats
+                st.markdown("### 🏆 TOURNAMENT INFORMATION")
+                
+                if "World Cup" in st.session_state.format:
+                    st.markdown("#### 🌍 WORLD CUP FORMAT")
+                    if st.session_state.world_cup_stage == "Group Stage":
+                        st.info("**Current Stage:** Group Stage")
+                        st.markdown("""
+                        **Format:**
+                        1. **Group Stage**: Teams play round-robin within their groups
+                        2. **Top 2 from each group** advance to knockout stage
+                        3. **Knockout Stage**: Single elimination (Round of 16 → Quarter Finals → Semi Finals → Final)
+                        
+                        **Group Stage Rules:**
+                        - 3 points for a win
+                        - 1 point for a draw
+                        - 0 points for a loss
+                        - Tie-breakers: Goal Difference → Goals For → Head-to-Head
+                        """)
+                        
+                        # Show group info
+                        st.markdown("#### 📊 GROUPS")
+                        for group_name, teams in st.session_state.groups.items():
+                            st.markdown(f"**Group {group_name}:** {', '.join(teams)}")
+                    
+                    else:
+                        st.info(f"**Current Stage:** {st.session_state.world_cup_stage}")
+                        st.markdown("**Knockout Stage Rules:**")
+                        st.markdown("""
+                        - **Single elimination**
+                        - **90 minutes**: If draw, go to extra time
+                        - **Penalties**: If still draw after extra time
+                        - **No away goals rule**
+                        - **Random draw** for each round
+                        """)
+                        
+                        if st.session_state.champion:
+                            st.success(f"🏆 **WORLD CUP CHAMPION:** {st.session_state.champion}")
+                
+                elif "Knockout" in st.session_state.format:
+                    st.markdown("#### 🎯 CLASSIC KNOCKOUT TOURNAMENT")
+                    st.info(f"**Current Round:** {st.session_state.current_round}")
+                    st.markdown("""
+                    **Format:**
+                    - **Single elimination** tournament
+                    - **Direct knockout** from Round 1
+                    - **Draws**: Go directly to penalties (no extra time)
+                    - **Random draw** for each round
+                    - **All matches** must have a winner
+                    """)
+                    
+                    if st.session_state.champion:
+                        st.success(f"🏆 **CHAMPION:** {st.session_state.champion}")
+                    else:
+                        # Show remaining teams count
+                        remaining_teams = set()
+                        for match in st.session_state.fixtures:
+                            if len(match) >= 2:
+                                remaining_teams.add(match[0])
+                                remaining_teams.add(match[1])
+                        
+                        st.metric("Teams Remaining", len(remaining_teams))
+                
+                else:  # League format
+                    st.markdown("#### 🏆 HOME & AWAY LEAGUE")
+                    st.markdown("""
+                    **Format:**
+                    - **Double round-robin** (home and away)
+                    - **3 points** for a win
+                    - **1 point** for a draw
+                    - **0 points** for a loss
+                    - **Tie-breakers**: Goal Difference → Goals For → Head-to-Head
+                    - **Season length**: (Teams × 2) - 2 matches per team
+                    """)
+                    
+                    if st.session_state.champion:
+                        st.success(f"🏆 **LEAGUE CHAMPION:** {st.session_state.champion}")
+                    else:
+                        # Calculate matches played
+                        total_matches = len(st.session_state.fixtures)
+                        played_matches = len(st.session_state.results)
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Total Matches", total_matches)
+                        with col2:
+                            st.metric("Matches Played", played_matches)
+                        with col3:
+                            if total_matches > 0:
+                                progress = int((played_matches / total_matches) * 100)
+                                st.metric("Completion", f"{progress}%")
+                
+                # General tournament info for all formats
+                st.markdown("---")
+                st.markdown("#### 📋 TOURNAMENT DETAILS")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Total Teams", len(st.session_state.teams))
+                    st.metric("Active Teams", len(st.session_state.active_teams))
+                with col2:
+                    st.metric("Tournament Format", st.session_state.format)
+                    if st.session_state.champion:
+                        st.metric("Status", "COMPLETED")
+                    else:
+                        st.metric("Status", "IN PROGRESS")
+
+# --- FOOTER ---
+st.markdown("""<div class="footer">OFFICIAL DLS TOURNAMENT ENGINE • CAPTAIN'S PORTAL EDITION <br> WRITTEN AND DESIGNED BY <span class="designer-name">OLUWATIMILEYIN IGBINLOLA</span></div>""", unsafe_allow_html=True)
