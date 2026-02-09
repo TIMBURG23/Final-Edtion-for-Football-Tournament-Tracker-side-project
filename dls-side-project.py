@@ -265,6 +265,51 @@ st.markdown("""
         background: rgba(0, 0, 0, 0.5) !important;
         border: 1px solid #5B0E14 !important;
     }
+    
+    /* PAST CHAMPIONS */
+    .champion-card {
+        background: linear-gradient(135deg, rgba(241, 225, 148, 0.1) 0%, rgba(148, 108, 30, 0.2) 100%);
+        border: 2px solid #F1E194;
+        padding: 20px;
+        border-radius: 10px;
+        margin: 10px 0;
+        text-align: center;
+    }
+    .champion-year {
+        font-size: 0.9rem;
+        color: #946c1e;
+        font-weight: bold;
+    }
+    .champion-name {
+        font-size: 1.5rem;
+        color: #F1E194;
+        font-weight: bold;
+        margin: 5px 0;
+    }
+    .champion-format {
+        font-size: 0.8rem;
+        color: #e2d2a3;
+    }
+    
+    /* CAPTAIN CREDENTIALS */
+    .credentials-box {
+        background: rgba(0, 0, 0, 0.8);
+        border: 2px solid #2196F3;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 10px 0;
+    }
+    
+    /* PIN DISPLAY */
+    .pin-display {
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        color: #F1E194;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 5px 10px;
+        border-radius: 4px;
+        border: 1px solid #5B0E14;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -280,7 +325,7 @@ def init_defaults():
         'teams': [], 'format': 'League', 'current_round': 'Group Stage',
         'fixtures': [], 'results': {}, 'match_meta': {},
         'started': False, 'groups': {}, 'champion': None, 'active_teams': [], 
-        'admin_unlock': False, 'team_badges': {}, 'news': [], 
+        'team_badges': {}, 'news': [], 
         'legacy_stats': {}, 'team_history': {},
         'eliminated_teams': [], 'round_number': 1, 'survival_history': [],
         'battle_phase': 'Phase 1: The Purge',
@@ -303,7 +348,11 @@ def init_defaults():
         'logged_in_captain': None,
         'captain_pin_verified': False,
         'team_passwords': {},  # team_name: hashed_password
-        'captain_logs': []  # Log of captain actions
+        'captain_logs': [],  # Log of captain actions
+        
+        # NEW: Past Champions Feature
+        'past_champions': [],  # List of dictionaries with champion info
+        'champion_history': {}  # Year/Tournament -> Champion mapping
     }
     for k, v in defaults.items():
         if k not in st.session_state: st.session_state[k] = v
@@ -316,7 +365,7 @@ def load_data():
                 # Load all existing data
                 for key in ['teams', 'format', 'current_round', 'fixtures', 'results', 
                           'match_meta', 'started', 'groups', 'champion', 'active_teams',
-                          'admin_unlock', 'team_badges', 'news', 'legacy_stats', 
+                          'team_badges', 'news', 'legacy_stats', 
                           'team_history', 'eliminated_teams', 'round_number', 
                           'survival_history', 'battle_phase', 'bye_team', 
                           'cumulative_stats', 'cumulative_player_stats', 
@@ -338,6 +387,10 @@ def load_data():
                 st.session_state.captain_pin_verified = data.get('captain_pin_verified', False)
                 st.session_state.team_passwords = data.get('team_passwords', {})
                 st.session_state.captain_logs = data.get('captain_logs', [])
+                
+                # Load Past Champions
+                st.session_state.past_champions = data.get('past_champions', [])
+                st.session_state.champion_history = data.get('champion_history', {})
 
                 # Initialize badges for new teams
                 for t in st.session_state.teams:
@@ -368,7 +421,6 @@ def save_data_internal():
         "groups": st.session_state.groups,
         "champion": st.session_state.champion,
         "active_teams": st.session_state.active_teams,
-        "admin_unlock": st.session_state.admin_unlock,
         "team_badges": st.session_state.team_badges,
         "news": st.session_state.news,
         "legacy_stats": st.session_state.legacy_stats,
@@ -396,7 +448,11 @@ def save_data_internal():
         "logged_in_captain": st.session_state.logged_in_captain,
         "captain_pin_verified": st.session_state.captain_pin_verified,
         "team_passwords": st.session_state.team_passwords,
-        "captain_logs": st.session_state.captain_logs
+        "captain_logs": st.session_state.captain_logs,
+        
+        # Past Champions
+        "past_champions": st.session_state.past_champions,
+        "champion_history": st.session_state.champion_history
     }
     with open(DB_FILE, "w") as f: 
         json.dump(data, f)
@@ -416,7 +472,6 @@ def download_backup():
         "groups": st.session_state.groups,
         "champion": st.session_state.champion,
         "active_teams": st.session_state.active_teams,
-        "admin_unlock": st.session_state.admin_unlock,
         "team_badges": st.session_state.team_badges,
         "news": st.session_state.news,
         "legacy_stats": st.session_state.legacy_stats,
@@ -442,7 +497,9 @@ def download_backup():
         "logged_in_captain": st.session_state.logged_in_captain,
         "captain_pin_verified": st.session_state.captain_pin_verified,
         "team_passwords": st.session_state.team_passwords,
-        "captain_logs": st.session_state.captain_logs
+        "captain_logs": st.session_state.captain_logs,
+        "past_champions": st.session_state.past_champions,
+        "champion_history": st.session_state.champion_history
     }
     
     # Convert to JSON string
@@ -833,6 +890,114 @@ def reset_match_result(match_id):
         return True
     return False
 
+# --- NEW: MANAGER CAPTAIN CONTROLS ---
+
+def view_all_captain_pins():
+    """Display all captain PINs for manager"""
+    if not st.session_state.teams:
+        return "No teams registered yet."
+    
+    pins_data = []
+    for team in st.session_state.teams:
+        pin = st.session_state.captain_pins.get(team, "Not set")
+        pins_data.append({
+            "Team": team,
+            "Captain PIN": pin,
+            "Status": "Active" if team in st.session_state.active_teams else "Inactive"
+        })
+    
+    return pd.DataFrame(pins_data)
+
+def reset_captain_pin(team_name):
+    """Reset a captain's PIN"""
+    if team_name in st.session_state.captain_pins:
+        new_pin = generate_pin()
+        st.session_state.captain_pins[team_name] = new_pin
+        
+        # Log the action
+        log_captain_action(f"Reset PIN for {team_name} to {new_pin}")
+        
+        return True, new_pin
+    return False, None
+
+def view_team_credentials(team_name):
+    """Get team credentials including password"""
+    if team_name in st.session_state.teams:
+        pin = st.session_state.captain_pins.get(team_name, "Not set")
+        # Note: Passwords are hashed, so we can't show the original
+        return {
+            "team": team_name,
+            "pin": pin,
+            "hashed_password": st.session_state.team_passwords.get(team_name, "Not set"),
+            "badge": st.session_state.team_badges.get(team_name, "🛡️")
+        }
+    return None
+
+def regenerate_all_pins():
+    """Regenerate PINs for all teams"""
+    for team in st.session_state.teams:
+        st.session_state.captain_pins[team] = generate_pin()
+    
+    # Log the action
+    log_captain_action("Regenerated all captain PINs")
+    
+    return True
+
+# --- PAST CHAMPIONS FEATURE ---
+
+def add_past_champion(champion_name, year=None, tournament_format=None):
+    """Add a past champion to the hall of fame"""
+    if not champion_name:
+        return False
+    
+    # Use current year if not specified
+    if not year:
+        year = datetime.now().year
+    
+    # Use current format if not specified
+    if not tournament_format:
+        tournament_format = st.session_state.format
+    
+    champion_entry = {
+        'champion': champion_name,
+        'year': year,
+        'format': tournament_format,
+        'added_at': datetime.now().isoformat()
+    }
+    
+    # Add to past champions list
+    st.session_state.past_champions.append(champion_entry)
+    
+    # Also add to champion history by year
+    st.session_state.champion_history[str(year)] = {
+        'champion': champion_name,
+        'format': tournament_format
+    }
+    
+    # Sort past champions by year (newest first)
+    st.session_state.past_champions.sort(key=lambda x: x['year'], reverse=True)
+    
+    # Log the action
+    log_captain_action(f"Added past champion: {champion_name} ({year})")
+    
+    return True
+
+def remove_past_champion(index):
+    """Remove a past champion from the hall of fame"""
+    if 0 <= index < len(st.session_state.past_champions):
+        removed = st.session_state.past_champions.pop(index)
+        
+        # Also remove from champion history
+        year_key = str(removed['year'])
+        if year_key in st.session_state.champion_history:
+            del st.session_state.champion_history[year_key]
+        
+        # Log the action
+        log_captain_action(f"Removed past champion: {removed['champion']} ({removed['year']})")
+        
+        return True
+    return False
+
 # --- 🧠 BATTLE ROYALE CORE LOGIC ---
 
 def generate_balanced_fixtures_fixed(teams, matches_per_team):
@@ -1053,9 +1218,14 @@ def handle_battle_royale_elimination():
         elim_count = 0
     else:
         # Only 1 team left - CHAMPION!
-        st.session_state.champion = standings[0]['Team']
-        st.session_state.news.insert(0, f"🏆 {st.session_state.champion} is the BATTLE ROYALE CHAMPION!")
+        champion = standings[0]['Team']
+        st.session_state.champion = champion
+        st.session_state.news.insert(0, f"🏆 {champion} is the BATTLE ROYALE CHAMPION!")
         st.session_state.battle_phase = "CHAMPION CROWNED"
+        
+        # Add to past champions
+        add_past_champion(champion, datetime.now().year, "Survival Mode (Battle Royale)")
+        
         save_data_internal()
         safe_rerun()
         return
@@ -1324,9 +1494,14 @@ def advance_knockout_tournament():
     
     # Check if we have a champion
     if len(winners) == 1:
-        st.session_state.champion = winners[0]
-        st.session_state.news.insert(0, f"🏆 {st.session_state.champion} is the CHAMPION!")
+        champion = winners[0]
+        st.session_state.champion = champion
+        st.session_state.news.insert(0, f"🏆 {champion} is the CHAMPION!")
         st.session_state.current_round = "TOURNAMENT COMPLETE"
+        
+        # Add to past champions
+        add_past_champion(champion, datetime.now().year, st.session_state.format)
+        
         save_data_internal()
         safe_rerun()
         return
@@ -1566,6 +1741,12 @@ if 'data_loaded' not in st.session_state:
     load_data()
     st.session_state.data_loaded = True
 
+# Initialize session-specific admin access
+if 'manager_pin_verified' not in st.session_state:
+    st.session_state.manager_pin_verified = False
+if 'admin_unlock' not in st.session_state:
+    st.session_state.admin_unlock = False
+
 init_defaults()
 
 # --- 🏆 HEADER ---
@@ -1621,15 +1802,26 @@ with st.sidebar:
         # MANAGER MODE
         st.markdown("### 🔐 MANAGER ACCESS")
         
-        if not st.session_state.admin_unlock:
+        # Session-specific PIN verification
+        if not st.session_state.manager_pin_verified:
             pin = st.text_input("ENTER ADMIN PIN", type="password", key="pin_input")
-            if pin == "0209": 
-                st.session_state.admin_unlock = True
-                save_data_internal()
-                safe_rerun()
-        
-        if st.session_state.admin_unlock:
-            st.success("ADMIN ACCESS GRANTED")
+            
+            col1, col2 = st.columns([3, 1])
+            with col2:
+                if st.button("🔓 UNLOCK", key="pin_unlock_btn", use_container_width=True):
+                    if pin == "0209":
+                        st.session_state.manager_pin_verified = True
+                        st.session_state.admin_unlock = True
+                        st.success("Admin access granted!")
+                        safe_rerun()
+                    elif pin:
+                        st.error("Incorrect PIN!")
+            
+            if not pin:
+                st.info("Enter PIN '0209' for manager access")
+        else:
+            # MANAGER ACCESS GRANTED - Show all manager controls
+            st.success("✅ ADMIN ACCESS GRANTED")
             
             # Pending reports notification
             pending_count = len(st.session_state.pending_reports)
@@ -1742,6 +1934,135 @@ with st.sidebar:
             
             st.markdown("---")
             
+            # --- CAPTAIN CONTROLS SECTION ---
+            st.markdown("### 🧢 CAPTAIN CONTROLS")
+            
+            # View all captain PINs
+            with st.expander("🔑 VIEW ALL CAPTAIN PINS", expanded=False):
+                if st.session_state.teams:
+                    pins_df = view_all_captain_pins()
+                    if isinstance(pins_df, pd.DataFrame):
+                        st.dataframe(pins_df, hide_index=True, use_container_width=True)
+                        
+                        # Export PINs as CSV
+                        csv = pins_df.to_csv(index=False)
+                        b64 = base64.b64encode(csv.encode()).decode()
+                        href = f'<a href="data:file/csv;base64,{b64}" download="captain_pins.csv" class="stButton">📥 Download PINs as CSV</a>'
+                        st.markdown(href, unsafe_allow_html=True)
+                    else:
+                        st.info(pins_df)
+                else:
+                    st.info("No teams registered yet.")
+            
+            # Reset individual captain PIN
+            with st.expander("🔄 RESET CAPTAIN PIN", expanded=False):
+                if st.session_state.teams:
+                    team_to_reset = st.selectbox("Select team", 
+                                                ["Select..."] + st.session_state.teams,
+                                                key="reset_pin_select")
+                    
+                    if team_to_reset != "Select...":
+                        current_pin = st.session_state.captain_pins.get(team_to_reset, "Not set")
+                        st.info(f"Current PIN for {team_to_reset}: `{current_pin}`")
+                        
+                        if st.button("🔄 GENERATE NEW PIN", key="reset_pin_btn"):
+                            success, new_pin = reset_captain_pin(team_to_reset)
+                            if success:
+                                save_data_internal()
+                                st.success(f"New PIN for {team_to_reset}: `{new_pin}`")
+                                safe_rerun()
+                else:
+                    st.info("No teams to reset")
+            
+            # Regenerate all PINs
+            with st.expander("🔄 REGENERATE ALL PINS", expanded=False):
+                st.warning("This will reset ALL captain PINs!")
+                st.info("All captains will need to use their new PINs to log in.")
+                
+                if st.button("🔄 REGENERATE ALL CAPTAIN PINS", key="regen_all_pins_btn", type="secondary"):
+                    if regenerate_all_pins():
+                        save_data_internal()
+                        st.success("All captain PINs regenerated!")
+                        safe_rerun()
+            
+            # View team credentials
+            with st.expander("👁️ VIEW TEAM CREDENTIALS", expanded=False):
+                if st.session_state.teams:
+                    selected_team = st.selectbox("Select team to view", 
+                                                ["Select..."] + st.session_state.teams,
+                                                key="view_creds_select")
+                    
+                    if selected_team != "Select...":
+                        creds = view_team_credentials(selected_team)
+                        if creds:
+                            st.markdown(f"""
+                            <div class="credentials-box">
+                                <h4>🔐 {creds['team']} Credentials</h4>
+                                <p><strong>Team:</strong> {creds['team']}</p>
+                                <p><strong>Badge:</strong> {creds['badge']}</p>
+                                <p><strong>Captain PIN:</strong> <span class="pin-display">{creds['pin']}</span></p>
+                                <p><strong>Password Hash:</strong> <code>{creds['hashed_password'][:20]}...</code></p>
+                                <p><small><em>Note: Password is hashed for security</em></small></p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                else:
+                    st.info("No teams to view")
+            
+            st.markdown("---")
+            
+            # --- PAST CHAMPIONS MANAGEMENT ---
+            st.markdown("### 🏆 PAST CHAMPIONS")
+            
+            with st.expander("📜 VIEW PAST CHAMPIONS", expanded=True):
+                if st.session_state.past_champions:
+                    for idx, champ in enumerate(st.session_state.past_champions[:5]):  # Show last 5
+                        st.markdown(f"""
+                        <div class="champion-card">
+                            <div class="champion-year">{champ['year']}</div>
+                            <div class="champion-name">{champ['champion']}</div>
+                            <div class="champion-format">{champ['format']}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("No past champions recorded yet.")
+            
+            with st.expander("➕ ADD PAST CHAMPION", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    champ_name = st.text_input("Champion Team Name", key="add_champion_name")
+                with col2:
+                    champ_year = st.number_input("Year", min_value=2000, max_value=2100, value=datetime.now().year, key="add_champion_year")
+                
+                champ_format = st.selectbox("Tournament Format", 
+                                          ["Home & Away League", "World Cup", "Classic Knockout", "Survival Mode (Battle Royale)"],
+                                          key="add_champion_format")
+                
+                if st.button("🏆 ADD CHAMPION", key="add_champion_btn"):
+                    if champ_name:
+                        if add_past_champion(champ_name, champ_year, champ_format):
+                            save_data_internal()
+                            st.success(f"Added {champ_name} as {champ_year} champion!")
+                            safe_rerun()
+                    else:
+                        st.error("Please enter a champion team name")
+            
+            with st.expander("🗑️ MANAGE CHAMPIONS", expanded=False):
+                if st.session_state.past_champions:
+                    for idx, champ in enumerate(st.session_state.past_champions):
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.write(f"**{champ['year']}:** {champ['champion']} ({champ['format']})")
+                        with col2:
+                            if st.button("❌", key=f"remove_champ_{idx}"):
+                                if remove_past_champion(idx):
+                                    save_data_internal()
+                                    st.success("Champion removed!")
+                                    safe_rerun()
+                else:
+                    st.info("No champions to manage")
+            
+            st.markdown("---")
+            
             # --- DATA MANAGEMENT SECTION ---
             st.markdown("### 💾 DATA MANAGEMENT")
             
@@ -1776,34 +2097,70 @@ with st.sidebar:
             
             st.markdown("---")
             
-            # Tournament-specific controls (Manager only)
+            # --- TOURNAMENT CONTROLS SECTION ---
+            st.markdown("### ⚙️ TOURNAMENT CONTROLS")
+            
+            # Tournament format changer
+            with st.expander("🔄 CHANGE TOURNAMENT FORMAT", expanded=False):
+                if not st.session_state.started:
+                    st.info("Tournament hasn't started yet")
+                else:
+                    st.warning("⚠️ Changing format mid-tournament may cause data issues!")
+                    new_format = st.selectbox("Select new format", 
+                                            ["Home & Away League", "World Cup (Groups + Knockout)", 
+                                             "Classic Knockout", "Survival Mode (Battle Royale)"],
+                                            key="change_format_select")
+                    
+                    if st.button("🔄 CHANGE FORMAT", key="change_format_btn", type="secondary"):
+                        st.session_state.format = new_format
+                        save_data_internal()
+                        st.success(f"Tournament format changed to {new_format}")
+                        safe_rerun()
+            
+            # Tournament progress controls
             if st.session_state.started and not st.session_state.champion:
-                st.markdown("### ⚙️ TOURNAMENT CONTROLS")
+                st.markdown("#### 🎯 ADVANCE TOURNAMENT")
                 
                 if "World Cup" in st.session_state.format:
                     if st.session_state.world_cup_stage == "Group Stage":
-                        if st.button("🏆 ADVANCE TO KNOCKOUT STAGE", key="advance_world_cup_btn"):
+                        if st.button("🏆 ADVANCE TO KNOCKOUT STAGE", key="advance_world_cup_btn", use_container_width=True):
                             advance_world_cup_knockout()
                     else:
-                        if st.button("⚽ ADVANCE TO NEXT ROUND", key="advance_knockout_btn"):
+                        if st.button("⚽ ADVANCE TO NEXT ROUND", key="advance_knockout_btn", use_container_width=True):
                             advance_knockout_tournament()
                 elif "Knockout" in st.session_state.format:
-                    if st.button("⚽ ADVANCE TO NEXT ROUND", key="advance_classic_knockout_btn"):
+                    if st.button("⚽ ADVANCE TO NEXT ROUND", key="advance_classic_knockout_btn", use_container_width=True):
                         advance_knockout_tournament()
                 elif "Survival" in st.session_state.format:
-                    if st.button("⏩ EXECUTE ELIMINATION", key="execute_elim_btn"): 
+                    if st.button("⏩ EXECUTE ELIMINATION", key="execute_elim_btn", use_container_width=True): 
                         st.toast("Processing Elimination...", icon="💀")
                         handle_battle_royale_elimination()
-            
-            st.markdown("---")
+                
+                # Force declare champion
+                if st.session_state.active_teams:
+                    with st.expander("🏆 FORCE DECLARE CHAMPION", expanded=False):
+                        st.error("⚠️ **DANGER ZONE** ⚠️")
+                        st.warning("This will immediately end the tournament!")
+                        force_champion = st.selectbox("Select champion", 
+                                                    ["Select..."] + st.session_state.active_teams,
+                                                    key="force_champion_select")
+                        
+                        if force_champion != "Select...":
+                            if st.button("👑 FORCE DECLARE CHAMPION", key="force_champion_btn", type="secondary"):
+                                st.session_state.champion = force_champion
+                                add_past_champion(force_champion, datetime.now().year, st.session_state.format)
+                                st.session_state.news.insert(0, f"🏆 {force_champion} declared champion by manager!")
+                                save_data_internal()
+                                st.success(f"{force_champion} declared champion!")
+                                safe_rerun()
             
             # Debug tools (Manager only)
             st.markdown("### 🐛 DEBUG TOOLS")
             
-            if st.button("🔄 Refresh View", key="refresh_view_btn"):
+            if st.button("🔄 Refresh View", key="refresh_view_btn", use_container_width=True):
                 safe_rerun()
             
-            if st.button("🔍 Check Data Consistency", key="check_consistency_btn"):
+            if st.button("🔍 Check Data Consistency", key="check_consistency_btn", use_container_width=True):
                 mismatches, recalculated = verify_data_consistency()
                 if mismatches:
                     st.error(f"Found {len(mismatches)} mismatches!")
@@ -1819,19 +2176,23 @@ with st.sidebar:
                 else:
                     st.success("All data is consistent! ✅")
             
-            if st.button("📊 Show System Info", key="show_system_info_btn"):
+            if st.button("📊 Show System Info", key="show_system_info_btn", use_container_width=True):
                 st.write("**System Status:**")
                 st.write(f"- Teams: {len(st.session_state.teams)}")
                 st.write(f"- Active Teams: {len(st.session_state.active_teams)}")
                 st.write(f"- Pending Reports: {len(st.session_state.pending_reports)}")
                 st.write(f"- Captain Logs: {len(st.session_state.captain_logs)}")
+                st.write(f"- Past Champions: {len(st.session_state.past_champions)}")
                 
                 with st.expander("View Captain Logs", expanded=False):
                     for log in st.session_state.captain_logs[-10:]:  # Last 10 logs
                         st.write(f"{log['timestamp']}: {log['action']}")
             
-            if st.button("🔒 LOGOUT", key="logout_btn"):
+            if st.button("🔒 LOGOUT", key="logout_btn", use_container_width=True):
+                st.session_state.manager_pin_verified = False
                 st.session_state.admin_unlock = False
+                st.session_state.logged_in_captain = None
+                st.session_state.captain_pin_verified = False
                 save_data_internal()
                 safe_rerun()
     
@@ -1870,10 +2231,14 @@ with st.sidebar:
             
             with st.expander("📋 YOUR CREDENTIALS", expanded=False):
                 st.info(f"**Team:** {st.session_state.logged_in_captain}")
-                st.warning(f"**Captain PIN:** `{st.session_state.captain_pins[st.session_state.logged_in_captain]}`")
-                st.caption("Keep this PIN safe! You'll need it to log in.")
+                st.markdown(f"""
+                <div class="credentials-box">
+                    <p><strong>Captain PIN:</strong> <span class="pin-display">{st.session_state.captain_pins[st.session_state.logged_in_captain]}</span></p>
+                    <p><small>Keep this PIN safe! You'll need it to log in.</small></p>
+                </div>
+                """, unsafe_allow_html=True)
             
-            if st.button("🚪 LOGOUT", key="captain_logout_btn"):
+            if st.button("🚪 LOGOUT", key="captain_logout_btn", use_container_width=True):
                 log_captain_action("Logged out", st.session_state.logged_in_captain)
                 st.session_state.logged_in_captain = None
                 st.session_state.captain_pin_verified = False
@@ -1895,6 +2260,20 @@ if not st.session_state.started:
             <p>Share this code with your friends to join!</p>
         </div>
         """, unsafe_allow_html=True)
+    
+    # Show Past Champions (Public View)
+    if st.session_state.past_champions:
+        st.markdown("### 🏆 PAST CHAMPIONS")
+        cols = st.columns(min(4, len(st.session_state.past_champions)))
+        for idx, champ in enumerate(st.session_state.past_champions[:4]):  # Show first 4
+            with cols[idx % len(cols)]:
+                st.markdown(f"""
+                <div class="champion-card">
+                    <div class="champion-year">{champ['year']}</div>
+                    <div class="champion-name">{champ['champion']}</div>
+                    <div class="champion-format">{champ['format']}</div>
+                </div>
+                """, unsafe_allow_html=True)
     
     # Team Registration Section
     st.markdown("### 🏆 REGISTER YOUR TEAM")
@@ -1918,7 +2297,7 @@ if not st.session_state.started:
             # Team registration form
             new_team_name = st.text_input("TEAM NAME", key="new_team_name_input")
             
-            if st.button("🚀 REGISTER TEAM", key="register_team_btn"):
+            if st.button("🚀 REGISTER TEAM", key="register_team_btn", use_container_width=True):
                 if new_team_name and new_team_name not in st.session_state.teams:
                     # Add team with captain credentials
                     credentials_msg, pin, password = add_team_with_captain(new_team_name)
@@ -1944,11 +2323,14 @@ if not st.session_state.started:
         for i, t in enumerate(st.session_state.teams):
             b = st.session_state.team_badges.get(t, "🛡️")
             with cols[i % 4]:
+                # For public view, show masked PINs
+                pin = st.session_state.captain_pins.get(t, "N/A")
+                masked_pin = pin[:2] + "••••" if len(pin) > 2 else "••••"
                 st.markdown(f"""
                 <div class='glass-panel' style='text-align:center'>
                     <h1>{b}</h1>
                     <h3>{t}</h3>
-                    <small>PIN: {st.session_state.captain_pins.get(t, 'N/A')}</small>
+                    <small>PIN: {masked_pin}</small>
                 </div>
                 """, unsafe_allow_html=True)
     
@@ -1962,7 +2344,7 @@ if not st.session_state.started:
                        "Classic Knockout", "Survival Mode (Battle Royale)"], 
                       horizontal=True, key="format_radio")
         
-        if st.button("🚀 START SEASON", key="init_season_btn"):
+        if st.button("🚀 START SEASON", key="init_season_btn", use_container_width=True):
             if len(st.session_state.teams) < 2:
                 st.error("Need at least 2 teams to start!")
             else:
@@ -2241,7 +2623,7 @@ else:
                                     ha_opp = st.text_input("Your Assists", key=f"cap_ha_opp_{mid}")
                                     hr_opp = st.text_input("Your Red Cards", key=f"cap_hr_opp_{mid}")
                             
-                            if st.button("📨 SUBMIT FOR APPROVAL", key=f"cap_submit_{mid}"):
+                            if st.button("📨 SUBMIT FOR APPROVAL", key=f"cap_submit_{mid}", use_container_width=True):
                                 # Prepare report
                                 if is_home:
                                     report = submit_match_report(mid, h, a, s1, s2, gs, gs_opp, ha, ha_opp, hr, hr_opp, p1, p2, captain_team)
@@ -2263,7 +2645,11 @@ else:
             col1.metric("Matches", stats['P'])
             col2.metric("Points", stats['Pts'])
             col3.metric("Goal Diff", stats['GD'])
-            col4.metric("Position", "—")  # Could calculate position
+            # Calculate position
+            standings = get_cumulative_standings()
+            standings.sort(key=lambda x: (x['Pts'], x['GD'], x['GF']), reverse=True)
+            position = next((i+1 for i, s in enumerate(standings) if s['Team'] == captain_team), "—")
+            col4.metric("Position", position)
         
         # Tournament info for captain
         st.markdown("### 🏆 TOURNAMENT INFO")
@@ -2272,21 +2658,42 @@ else:
         
         if "Survival" in st.session_state.format:
             st.warning("💀 **Battle Royale Mode:** Points carry over between rounds!")
+        
+        # Show past champions to captain
+        if st.session_state.past_champions:
+            st.markdown("### 🏆 PAST CHAMPIONS")
+            for champ in st.session_state.past_champions[:3]:  # Show last 3
+                st.markdown(f"**{champ['year']}:** {champ['champion']} ({champ['format']})")
     
     else:
         # Manager or public view - full interface
         
+        # Show Past Champions (Public View)
+        if st.session_state.past_champions:
+            st.markdown("### 🏆 PAST CHAMPIONS")
+            cols = st.columns(min(4, len(st.session_state.past_champions)))
+            for idx, champ in enumerate(st.session_state.past_champions[:4]):  # Show first 4
+                with cols[idx % len(cols)]:
+                    st.markdown(f"""
+                    <div class="champion-card">
+                        <div class="champion-year">{champ['year']}</div>
+                        <div class="champion-name">{champ['champion']}</div>
+                        <div class="champion-format">{champ['format']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            st.markdown("---")
+        
         # Determine tabs based on format
         if "World Cup" in st.session_state.format and st.session_state.world_cup_stage == "Group Stage":
-            tab_names = ["🏆 GROUPS", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO"]
+            tab_names = ["🏆 GROUPS", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO", "🏅 HALL OF FAME"]
         elif "World Cup" in st.session_state.format:
-            tab_names = ["📊 KNOCKOUT", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO"]
+            tab_names = ["📊 KNOCKOUT", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO", "🏅 HALL OF FAME"]
         elif "Knockout" in st.session_state.format:
-            tab_names = ["📊 BRACKET", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO"]
+            tab_names = ["📊 BRACKET", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO", "🏅 HALL OF FAME"]
         elif "Survival" in st.session_state.format:
-            tab_names = ["📊 CUMULATIVE TABLE", "⚽ MATCH CENTER", "⭐ STATS", "💀 BATTLE INFO"]
+            tab_names = ["📊 CUMULATIVE TABLE", "⚽ MATCH CENTER", "⭐ STATS", "💀 BATTLE INFO", "🏅 HALL OF FAME"]
         else:  # League
-            tab_names = ["📊 LEAGUE TABLE", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO"]
+            tab_names = ["📊 LEAGUE TABLE", "⚽ MATCH CENTER", "⭐ STATS", "📊 TOURNAMENT INFO", "🏅 HALL OF FAME"]
         
         tabs = st.tabs(tab_names)
 
@@ -2612,7 +3019,7 @@ else:
                             
                             col1, col2 = st.columns(2)
                             with col1:
-                                if st.button("✅ CONFIRM RESULT", key=f"b_{mid}"):
+                                if st.button("✅ CONFIRM RESULT", key=f"b_{mid}", use_container_width=True):
                                     # Use the safe update function
                                     update_match_result_safely(mid, h, a, s1, s2, p1, p2, gs1, gs2, ha, aa, hr, ar)
                                     
@@ -2621,7 +3028,7 @@ else:
                                     safe_rerun()
                             
                             with col2:
-                                if res and st.button("🔄 RESET MATCH", key=f"reset_{mid}"):
+                                if res and st.button("🔄 RESET MATCH", key=f"reset_{mid}", use_container_width=True):
                                     if reset_match_result(mid):
                                         save_data_internal()
                                         st.warning("Match reset!")
@@ -2860,6 +3267,90 @@ else:
                         st.metric("Status", "COMPLETED")
                     else:
                         st.metric("Status", "IN PROGRESS")
+        
+        # --- TAB 5: Hall of Fame ---
+        with tabs[4]:
+            st.markdown("### 🏅 HALL OF FAME")
+            
+            if st.session_state.past_champions:
+                # Show all past champions
+                st.markdown("#### 🏆 PAST CHAMPIONS")
+                
+                # Group by year
+                champions_by_year = {}
+                for champ in st.session_state.past_champions:
+                    year = champ['year']
+                    if year not in champions_by_year:
+                        champions_by_year[year] = []
+                    champions_by_year[year].append(champ)
+                
+                # Sort years descending
+                sorted_years = sorted(champions_by_year.keys(), reverse=True)
+                
+                for year in sorted_years:
+                    with st.expander(f"🎯 {year} SEASON", expanded=year == sorted_years[0]):
+                        year_champs = champions_by_year[year]
+                        cols = st.columns(min(3, len(year_champs)))
+                        
+                        for idx, champ in enumerate(year_champs):
+                            with cols[idx % len(cols)]:
+                                st.markdown(f"""
+                                <div class="champion-card">
+                                    <div class="champion-name">{champ['champion']}</div>
+                                    <div class="champion-format">{champ['format']}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                
+                # Stats
+                st.markdown("#### 📊 CHAMPIONSHIP STATS")
+                
+                # Calculate most successful teams
+                champion_counts = {}
+                for champ in st.session_state.past_champions:
+                    team = champ['champion']
+                    champion_counts[team] = champion_counts.get(team, 0) + 1
+                
+                if champion_counts:
+                    # Most championships
+                    most_champs = max(champion_counts.items(), key=lambda x: x[1])
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total Championships", len(st.session_state.past_champions))
+                    with col2:
+                        st.metric("Unique Champions", len(champion_counts))
+                    with col3:
+                        st.metric("Most Championships", f"{most_champs[0]} ({most_champs[1]})")
+                    
+                    # Show champion leaderboard
+                    st.markdown("#### 👑 CHAMPION LEADERBOARD")
+                    leaderboard = sorted(champion_counts.items(), key=lambda x: x[1], reverse=True)
+                    leaderboard_data = []
+                    for idx, (team, count) in enumerate(leaderboard[:10]):  # Top 10
+                        leaderboard_data.append({
+                            "Rank": idx + 1,
+                            "Team": team,
+                            "Championships": count,
+                            "Last Win": next((c['year'] for c in st.session_state.past_champions if c['champion'] == team), "N/A")
+                        })
+                    
+                    if leaderboard_data:
+                        df_leaderboard = pd.DataFrame(leaderboard_data)
+                        st.dataframe(df_leaderboard, hide_index=True, use_container_width=True)
+            else:
+                st.info("No past champions recorded yet. Complete tournaments to build the Hall of Fame!")
+                
+                # Show current champion if exists
+                if st.session_state.champion:
+                    st.markdown("#### 🏆 CURRENT CHAMPION")
+                    st.markdown(f"""
+                    <div class="champion-card">
+                        <div class="champion-name">{st.session_state.champion}</div>
+                        <div class="champion-format">{st.session_state.format}</div>
+                        <div class="champion-year">Current Season</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
 # --- FOOTER ---
+
 st.markdown("""<div class="footer">OFFICIAL DLS TOURNAMENT ENGINE • CAPTAIN'S PORTAL EDITION <br> WRITTEN AND DESIGNED BY <span class="designer-name">OLUWATIMILEYIN IGBINLOLA</span></div>""", unsafe_allow_html=True)
