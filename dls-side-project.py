@@ -310,6 +310,21 @@ st.markdown("""
         border-radius: 4px;
         border: 1px solid #5B0E14;
     }
+    
+    /* FIXED RESULT BUTTON */
+    .fixed-result-btn {
+        background: linear-gradient(90deg, #FF9800 0%, #FFB74D 100%) !important;
+        color: white !important;
+        border: 1px solid #FF9800 !important;
+        font-size: 0.8rem !important;
+        padding: 5px 10px !important;
+    }
+    
+    /* DISABLED STATE */
+    .disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -352,7 +367,12 @@ def init_defaults():
         
         # NEW: Past Champions Feature
         'past_champions': [],  # List of dictionaries with champion info
-        'champion_history': {}  # Year/Tournament -> Champion mapping
+        'champion_history': {},  # Year/Tournament -> Champion mapping
+        
+        # NEW: Fixed Results by Captains
+        'fixed_results': {},  # match_id -> result fixed by captain
+        'captain_fixed_matches': {},  # team_name -> list of match_ids they fixed
+        'admin_approved_results': {}  # match_id -> True if approved by admin
     }
     for k, v in defaults.items():
         if k not in st.session_state: st.session_state[k] = v
@@ -391,6 +411,11 @@ def load_data():
                 # Load Past Champions
                 st.session_state.past_champions = data.get('past_champions', [])
                 st.session_state.champion_history = data.get('champion_history', {})
+                
+                # Load Fixed Results data
+                st.session_state.fixed_results = data.get('fixed_results', {})
+                st.session_state.captain_fixed_matches = data.get('captain_fixed_matches', {})
+                st.session_state.admin_approved_results = data.get('admin_approved_results', {})
 
                 # Initialize badges for new teams
                 for t in st.session_state.teams:
@@ -401,6 +426,11 @@ def load_data():
                 for t in st.session_state.teams:
                     if t not in st.session_state.captain_pins:
                         st.session_state.captain_pins[t] = generate_pin()
+                        
+                # Initialize captain fixed matches for existing teams
+                for t in st.session_state.teams:
+                    if t not in st.session_state.captain_fixed_matches:
+                        st.session_state.captain_fixed_matches[t] = []
         except Exception as e:
             st.error(f"Error loading data: {e}")
             init_defaults()
@@ -452,7 +482,12 @@ def save_data_internal():
         
         # Past Champions
         "past_champions": st.session_state.past_champions,
-        "champion_history": st.session_state.champion_history
+        "champion_history": st.session_state.champion_history,
+        
+        # Fixed Results data
+        "fixed_results": st.session_state.fixed_results,
+        "captain_fixed_matches": st.session_state.captain_fixed_matches,
+        "admin_approved_results": st.session_state.admin_approved_results
     }
     with open(DB_FILE, "w") as f: 
         json.dump(data, f)
@@ -499,7 +534,10 @@ def download_backup():
         "team_passwords": st.session_state.team_passwords,
         "captain_logs": st.session_state.captain_logs,
         "past_champions": st.session_state.past_champions,
-        "champion_history": st.session_state.champion_history
+        "champion_history": st.session_state.champion_history,
+        "fixed_results": st.session_state.fixed_results,
+        "captain_fixed_matches": st.session_state.captain_fixed_matches,
+        "admin_approved_results": st.session_state.admin_approved_results
     }
     
     # Convert to JSON string
@@ -567,7 +605,7 @@ def delete_team(team_name):
                 st.session_state.groups[group_name].remove(team_name)
         
         # Remove associated data
-        for key in ['team_badges', 'captain_pins', 'team_passwords', 'cumulative_stats']:
+        for key in ['team_badges', 'captain_pins', 'team_passwords', 'cumulative_stats', 'captain_fixed_matches']:
             if team_name in st.session_state.get(key, {}):
                 del st.session_state[key][team_name]
         
@@ -680,6 +718,9 @@ def add_team_with_captain(team_name):
         
         st.session_state.captain_pins[team_name] = pin
         st.session_state.team_passwords[team_name] = hash_password(password)
+        
+        # Initialize fixed matches tracking
+        st.session_state.captain_fixed_matches[team_name] = []
         
         # Add to active teams if tournament started
         if st.session_state.started:
@@ -826,6 +867,10 @@ def approve_match_report(report_id):
     s1, s2 = report['home_score'], report['away_score']
     p1, p2 = report['home_pens'], report['away_pens']
     
+    # Mark as approved by admin
+    st.session_state.admin_approved_results[mid] = True
+    
+    # Update match result
     update_match_result_safely(mid, h, a, s1, s2, p1, p2, 
                               report['home_scorers'], report['away_scorers'],
                               report['home_assists'], report['away_assists'],
@@ -833,6 +878,10 @@ def approve_match_report(report_id):
     
     # Remove from pending reports
     st.session_state.pending_reports = [r for r in st.session_state.pending_reports if r['report_id'] != report_id]
+    
+    # Remove from fixed results if exists
+    if mid in st.session_state.fixed_results:
+        del st.session_state.fixed_results[mid]
     
     # Add to news
     st.session_state.news.insert(0, f"✅ {h} {s1}-{s2} {a} (Report approved)")
@@ -850,6 +899,10 @@ def reject_match_report(report_id):
     
     # Remove from pending reports
     st.session_state.pending_reports = [r for r in st.session_state.pending_reports if r['report_id'] != report_id]
+    
+    # Remove from fixed results if exists
+    if report['match_id'] in st.session_state.fixed_results:
+        del st.session_state.fixed_results[report['match_id']]
     
     # Log the rejection
     log_captain_action(f"Rejected match report: {report['home_team']} {report['home_score']}-{report['away_score']} {report['away_team']}")
@@ -881,6 +934,19 @@ def reset_match_result(match_id):
         if match_id in st.session_state.match_history:
             del st.session_state.match_history[match_id]
         
+        # Remove from fixed results
+        if match_id in st.session_state.fixed_results:
+            del st.session_state.fixed_results[match_id]
+        
+        # Remove from admin approved results
+        if match_id in st.session_state.admin_approved_results:
+            del st.session_state.admin_approved_results[match_id]
+        
+        # Remove from captain fixed matches
+        for team in st.session_state.captain_fixed_matches:
+            if match_id in st.session_state.captain_fixed_matches[team]:
+                st.session_state.captain_fixed_matches[team].remove(match_id)
+        
         # Add to news
         st.session_state.news.insert(0, f"🔄 Match reset: {h} vs {a}")
         
@@ -889,6 +955,77 @@ def reset_match_result(match_id):
         
         return True
     return False
+
+# --- NEW: FIXED RESULTS SYSTEM ---
+
+def captain_can_fix_match(match_id, captain_team):
+    """Check if a captain can fix a match result"""
+    if "_" not in match_id or "v" not in match_id:
+        return False
+    
+    # Extract teams from match_id
+    base = match_id.split('_')[0]
+    h, a = base.split('v')
+    
+    # Captain can only fix matches involving their team
+    return captain_team in [h, a]
+
+def fix_match_result_by_captain(match_id, home_team, away_team, home_score, away_score,
+                               home_scorers="", away_scorers="", home_assists="", 
+                               away_assists="", home_reds="", away_reds="", 
+                               home_pens=0, away_pens=0, fixed_by=""):
+    """Captain fixes a match result - creates a pending report"""
+    
+    # Create a fixed result record
+    fixed_result = {
+        'match_id': match_id,
+        'home_team': home_team,
+        'away_team': away_team,
+        'home_score': home_score,
+        'away_score': away_score,
+        'home_scorers': home_scorers,
+        'away_scorers': away_scorers,
+        'home_assists': home_assists,
+        'away_assists': away_assists,
+        'home_reds': home_reds,
+        'away_reds': away_reds,
+        'home_pens': home_pens,
+        'away_pens': away_pens,
+        'fixed_by': fixed_by,
+        'fixed_at': datetime.now().isoformat(),
+        'status': 'pending'
+    }
+    
+    # Store fixed result
+    st.session_state.fixed_results[match_id] = fixed_result
+    
+    # Track which matches this captain has fixed
+    if fixed_by not in st.session_state.captain_fixed_matches:
+        st.session_state.captain_fixed_matches[fixed_by] = []
+    
+    if match_id not in st.session_state.captain_fixed_matches[fixed_by]:
+        st.session_state.captain_fixed_matches[fixed_by].append(match_id)
+    
+    # Create a pending report for admin approval
+    report = submit_match_report(match_id, home_team, away_team, home_score, away_score,
+                                home_scorers, away_scorers, home_assists, away_assists,
+                                home_reds, away_reds, home_pens, away_pens, fixed_by)
+    
+    # Log the action
+    log_captain_action(f"Fixed match result: {home_team} {home_score}-{away_score} {away_team} (Pending approval)", fixed_by)
+    
+    return fixed_result, report
+
+def get_match_result_status(match_id):
+    """Get the status of a match result"""
+    if match_id in st.session_state.admin_approved_results:
+        return "approved"
+    elif match_id in st.session_state.fixed_results:
+        return "pending"
+    elif match_id in st.session_state.results:
+        return "completed"
+    else:
+        return "not_played"
 
 # --- NEW: ADMIN CAPTAIN CONTROLS ---
 
@@ -997,6 +1134,51 @@ def remove_past_champion(index):
         
         return True
     return False
+
+# --- DEBUGGING HELPER FUNCTIONS ---
+
+def debug_captain_view(captain_team):
+    """Debug function to show what matches are available for captain"""
+    debug_info = {
+        "captain_team": captain_team,
+        "active_teams": st.session_state.active_teams,
+        "fixtures_count": len(st.session_state.fixtures),
+        "captain_fixtures": []
+    }
+    
+    for i, fix in enumerate(st.session_state.fixtures):
+        if len(fix) < 2:
+            continue
+        h, a = fix[0], fix[1]
+        if captain_team in [h, a]:
+            mid = f"{h}v{a}_{i}"
+            debug_info["captain_fixtures"].append({
+                "match_id": mid,
+                "home": h,
+                "away": a,
+                "index": i,
+                "in_active_teams": h in st.session_state.active_teams and a in st.session_state.active_teams
+            })
+    
+    return debug_info
+
+def find_matches_for_team(team_name):
+    """Find all matches for a specific team"""
+    matches = []
+    for i, fix in enumerate(st.session_state.fixtures):
+        if len(fix) < 2:
+            continue
+        h, a = fix[0], fix[1]
+        if team_name in [h, a]:
+            mid = f"{h}v{a}_{i}"
+            matches.append({
+                "index": i,
+                "home": h,
+                "away": a,
+                "match_id": mid,
+                "status": get_match_result_status(mid)
+            })
+    return matches
 
 # --- 🧠 BATTLE ROYALE CORE LOGIC ---
 
@@ -1331,9 +1513,11 @@ def handle_battle_royale_elimination():
     else:
         st.session_state.current_round = f"Round {st.session_state.round_number} • {phase}"
     
-    # Reset match data for next round
+    # Reset match data for next round (but keep admin approved results)
     st.session_state.results = {}
     st.session_state.match_meta = {}
+    st.session_state.fixed_results = {}
+    st.session_state.captain_fixed_matches = {team: [] for team in st.session_state.active_teams}
     
     # Log history
     st.session_state.survival_history.append({
@@ -1529,6 +1713,8 @@ def advance_knockout_tournament():
     st.session_state.current_round = next_round
     st.session_state.results = {}
     st.session_state.match_meta = {}
+    st.session_state.fixed_results = {}
+    st.session_state.captain_fixed_matches = {team: [] for team in winners}
     
     # For World Cup, update stage
     if "World Cup" in st.session_state.format:
@@ -1784,7 +1970,7 @@ else:
 with st.sidebar:
     # User Mode Selector
     st.markdown("### 👤 USER MODE")
-    user_mode = st.radio("Select Mode", ["Admin", "Team Captain"], 
+    user_mode = st.radio("Select Mode", ["Admin", "Captain"], 
                         key="user_mode_selector",
                         index=0 if st.session_state.user_mode == "Admin" else 1)
     
@@ -1880,6 +2066,9 @@ with st.sidebar:
                     st.session_state.bye_team = None
                     st.session_state.sudden_death_round = 0
                     st.session_state.champion = None
+                    st.session_state.fixed_results = {}
+                    st.session_state.captain_fixed_matches = {team: [] for team in st.session_state.teams}
+                    st.session_state.admin_approved_results = {}
                     
                     # Reinitialize stats for all teams
                     for team in st.session_state.teams:
@@ -2183,10 +2372,38 @@ with st.sidebar:
                 st.write(f"- Pending Reports: {len(st.session_state.pending_reports)}")
                 st.write(f"- Captain Logs: {len(st.session_state.captain_logs)}")
                 st.write(f"- Past Champions: {len(st.session_state.past_champions)}")
+                st.write(f"- Fixed Results (Pending): {len(st.session_state.fixed_results)}")
+                st.write(f"- Approved Results: {len(st.session_state.admin_approved_results)}")
                 
                 with st.expander("View Captain Logs", expanded=False):
                     for log in st.session_state.captain_logs[-10:]:  # Last 10 logs
                         st.write(f"{log['timestamp']}: {log['action']}")
+            
+            # Match Debugger Tool
+            with st.expander("🔍 MATCH DEBUGGER", expanded=False):
+                if st.session_state.teams:
+                    team_to_check = st.selectbox("Check matches for team:", 
+                                                ["Select..."] + st.session_state.teams,
+                                                key="debug_team_select")
+                    
+                    if team_to_check != "Select...":
+                        matches = find_matches_for_team(team_to_check)
+                        st.write(f"**Matches for {team_to_check}:**")
+                        if matches:
+                            for match in matches:
+                                status = "✅ Approved" if match['status'] == 'approved' else \
+                                        "⏳ Pending" if match['status'] == 'pending' else \
+                                        "✅ Completed" if match['status'] == 'completed' else \
+                                        "❌ Not played"
+                                st.write(f"- {match['home']} vs {match['away']} ({status}) - ID: {match['match_id']}")
+                        else:
+                            st.write("No matches found")
+                        
+                        # Show all fixtures
+                        st.write(f"**All fixtures ({len(st.session_state.fixtures)}):**")
+                        for i, fix in enumerate(st.session_state.fixtures[:20]):  # First 20
+                            if len(fix) >= 2:
+                                st.write(f"{i}: {fix[0]} vs {fix[1]}")
             
             if st.button("🔒 LOGOUT", key="logout_btn", use_container_width=True):
                 st.session_state.admin_pin_verified = False
@@ -2201,8 +2418,9 @@ with st.sidebar:
         st.markdown("### 🧢 CAPTAIN LOGIN")
         
         if not st.session_state.captain_pin_verified:
-            # Team selection
-            available_teams = [t for t in st.session_state.teams if t in st.session_state.active_teams or not st.session_state.started]
+            # Team selection - only show teams that exist in the tournament
+            available_teams = st.session_state.teams
+            
             if available_teams:
                 selected_team = st.selectbox("SELECT YOUR TEAM", ["Select..."] + available_teams, key="captain_team_select")
                 
@@ -2222,9 +2440,9 @@ with st.sidebar:
                             else:
                                 st.error("Incorrect PIN!")
                         else:
-                            st.error("Team not found!")
+                            st.error("PIN not found for this team!")
             else:
-                st.info("No teams available yet.")
+                st.info("No teams available yet. Please register a team first.")
         
         if st.session_state.captain_pin_verified and st.session_state.logged_in_captain:
             st.success(f"Logged in as: {st.session_state.logged_in_captain}")
@@ -2351,6 +2569,9 @@ if not st.session_state.started:
                 st.session_state.format = fmt
                 st.session_state.active_teams = st.session_state.teams.copy()
                 
+                # Initialize fixed matches tracking for all teams
+                st.session_state.captain_fixed_matches = {team: [] for team in st.session_state.teams}
+                
                 if "Survival" in fmt:
                     st.session_state.current_round = "Round 1"
                     st.session_state.eliminated_teams = []
@@ -2362,6 +2583,8 @@ if not st.session_state.started:
                     st.session_state.cumulative_player_stats = {}
                     st.session_state.sudden_death_round = 0
                     st.session_state.phase1_match_count = 2
+                    st.session_state.fixed_results = {}
+                    st.session_state.admin_approved_results = {}
                     
                     # Initialize cumulative stats for all teams
                     for team in st.session_state.teams:
@@ -2431,6 +2654,12 @@ if not st.session_state.started:
                 save_data_internal()
                 st.balloons()
                 safe_rerun()
+    
+    # If captain is logged in but season hasn't started
+    if st.session_state.user_mode == "Captain" and st.session_state.captain_pin_verified:
+        st.markdown("---")
+        st.info("⏳ **The tournament hasn't started yet.** The admin will start the season when all teams are ready.")
+        st.warning("📋 **As a captain, you cannot start the season.** Only admins can start tournaments.")
 
 else:
     # SEASON IN PROGRESS
@@ -2525,25 +2754,83 @@ else:
     if st.session_state.user_mode == "Captain" and st.session_state.captain_pin_verified:
         # Captain view - simplified interface
         captain_team = st.session_state.logged_in_captain
-        st.markdown(f"<div class='glass-panel captain-portal'><h2>🧢 CAPTAIN'S PORTAL - {captain_team}</h2><p>Manage your team's matches and reports</p></div>", unsafe_allow_html=True)
         
-        # Captain's matches
-        st.markdown("### ⚽ YOUR MATCHES")
-        
-        captain_matches = []
-        for i, fix in enumerate(st.session_state.fixtures):
-            if len(fix) < 2:
-                continue
-            h, a = fix[0], fix[1]
-            if captain_team in [h, a]:
-                captain_matches.append((i, h, a))
-        
-        if not captain_matches:
-            st.info("No matches scheduled for your team yet.")
+        # Check if captain's team is still active
+        if captain_team not in st.session_state.active_teams and captain_team not in [e['team'] for e in st.session_state.eliminated_teams]:
+            st.error(f"⚠️ **Your team '{captain_team}' is not in the tournament!**")
+            st.info("Please contact the tournament admin if you believe this is an error.")
+            if st.button("🚪 LOGOUT", key="captain_inactive_logout"):
+                st.session_state.logged_in_captain = None
+                st.session_state.captain_pin_verified = False
+                save_data_internal()
+                safe_rerun()
         else:
-            for i, h, a in captain_matches:
-                mid = f"{h}v{a}_{i}"
-                res = st.session_state.results.get(mid)
+            st.markdown(f"<div class='glass-panel captain-portal'><h2>🧢 CAPTAIN'S PORTAL - {captain_team}</h2><p>Manage your team's matches and reports</p></div>", unsafe_allow_html=True)
+            
+            # Captain's matches - only show matches involving their team
+            st.markdown("### ⚽ YOUR MATCHES")
+            
+            # Debug info
+            debug_info = debug_captain_view(captain_team)
+            st.info(f"**Debug Info:** Found {len(debug_info['captain_fixtures'])} matches for {captain_team}")
+            
+            # If no matches found, show all matches to help diagnose
+            if not debug_info['captain_fixtures']:
+                st.warning("⚠️ No matches found for your team!")
+                st.markdown("#### All Available Matches:")
+                for i, fix in enumerate(st.session_state.fixtures[:10]):  # Show first 10
+                    if len(fix) < 2:
+                        continue
+                    h, a = fix[0], fix[1]
+                    st.write(f"Match {i}: {h} vs {a}")
+                
+                # Check if captain's team is in active teams
+                if captain_team not in st.session_state.active_teams:
+                    st.error(f"❌ {captain_team} is not in active teams list!")
+                    st.write(f"Active teams: {', '.join(st.session_state.active_teams)}")
+                    st.write(f"All teams: {', '.join(st.session_state.teams)}")
+                
+                # Manual match entry form
+                with st.expander("🆘 MANUAL MATCH ENTRY (Debug)", expanded=False):
+                    st.markdown("If your match isn't showing above, you can manually enter it here:")
+                    
+                    # Get all opponents
+                    opponents = [t for t in st.session_state.active_teams if t != captain_team]
+                    
+                    if opponents:
+                        opponent = st.selectbox("Select opponent", opponents, key="manual_opponent")
+                        is_home = st.radio("Are you home or away?", ["Home", "Away"], horizontal=True, key="manual_home_away")
+                        
+                        if is_home == "Home":
+                            home_team, away_team = captain_team, opponent
+                        else:
+                            home_team, away_team = opponent, captain_team
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            home_score = st.number_input("Your Score", 0, 20, key="manual_home_score")
+                        with col2:
+                            away_score = st.number_input("Opponent Score", 0, 20, key="manual_away_score")
+                        
+                        # Create a manual match ID
+                        manual_match_id = f"{home_team}v{away_team}_manual"
+                        
+                        if st.button("📨 SUBMIT MANUAL MATCH REPORT", key="manual_submit"):
+                            # Create and submit report
+                            report = submit_match_report(manual_match_id, home_team, away_team, home_score, away_score, 
+                                                        submitted_by=captain_team)
+                            
+                            save_data_internal()
+                            st.success("✅ Manual match report submitted for admin approval!")
+                            safe_rerun()
+            
+            # Display captain's matches
+            for match_info in debug_info['captain_fixtures']:
+                i = match_info['index']
+                h = match_info['home']
+                a = match_info['away']
+                mid = match_info['match_id']
+                result_status = get_match_result_status(mid)
                 
                 with st.container():
                     st.markdown(f"<div class='glass-panel'>", unsafe_allow_html=True)
@@ -2555,19 +2842,30 @@ else:
                     col1.markdown(f"<h3 style='text-align:right'>{h} {b1}</h3>", unsafe_allow_html=True)
                     col3.markdown(f"<h3 style='text-align:left'>{b2} {a}</h3>", unsafe_allow_html=True)
                     
-                    if res:
+                    if result_status == "approved" and mid in st.session_state.results:
+                        res = st.session_state.results[mid]
                         score = f"{res[0]} - {res[1]}"
                         if len(res) > 2:
                             score += f"\n(P: {res[2]}-{res[3]})"
                         col2.markdown(f"<h1 style='text-align:center; color:#F1E194'>{score}</h1>", unsafe_allow_html=True)
-                        col2.success("✅ Match completed")
+                        col2.success("✅ Match completed & approved")
+                    elif result_status == "pending":
+                        # Show pending result
+                        if mid in st.session_state.fixed_results:
+                            fixed = st.session_state.fixed_results[mid]
+                            score = f"{fixed['home_score']} - {fixed['away_score']}"
+                            col2.markdown(f"<h1 style='text-align:center; color:#FF9800'>{score}</h1>", unsafe_allow_html=True)
+                            col2.warning("⏳ Pending approval")
+                        else:
+                            col2.markdown(f"<h1 style='text-align:center; color:#FF9800'>VS</h1>", unsafe_allow_html=True)
+                            col2.info("⚠️ Result pending")
                     else:
                         col2.markdown(f"<h1 style='text-align:center; color:#946c1e'>VS</h1>", unsafe_allow_html=True)
                         
-                        # Captain reporting form
-                        expander_title = f"📝 SUBMIT MATCH REPORT"
-                        with st.expander(expander_title, expanded=False):
-                            st.warning("Your report will be sent for admin approval")
+                        # Captain fixing form - only if captain's team is involved
+                        expander_title = f"📝 FIX MATCH RESULT"
+                        with st.expander(expander_title, expanded=True):  # Changed to expanded=True
+                            st.info("You can fix the result for this match. It will be sent for admin approval.")
                             
                             # Determine if captain's team is home or away
                             is_home = h == captain_team
@@ -2624,46 +2922,46 @@ else:
                                     hr_opp = st.text_input("Your Red Cards", key=f"cap_hr_opp_{mid}")
                             
                             if st.button("📨 SUBMIT FOR APPROVAL", key=f"cap_submit_{mid}", use_container_width=True):
-                                # Prepare report
+                                # Prepare and submit fixed result
                                 if is_home:
-                                    report = submit_match_report(mid, h, a, s1, s2, gs, gs_opp, ha, ha_opp, hr, hr_opp, p1, p2, captain_team)
+                                    fixed_result, report = fix_match_result_by_captain(mid, h, a, s1, s2, gs, gs_opp, ha, ha_opp, hr, hr_opp, p1, p2, captain_team)
                                 else:
-                                    report = submit_match_report(mid, h, a, s2, s1, gs_opp, gs, ha_opp, ha, hr_opp, hr, p2, p1, captain_team)
+                                    fixed_result, report = fix_match_result_by_captain(mid, h, a, s2, s1, gs_opp, gs, ha_opp, ha, hr_opp, hr, p2, p1, captain_team)
                                 
                                 save_data_internal()
-                                st.success("✅ Report submitted! Awaiting Admin approval.")
+                                st.success("✅ Result fixed! Awaiting Admin approval.")
                                 safe_rerun()
                     
                     st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Captain's team info
-        st.markdown("### 📊 YOUR TEAM STATS")
-        
-        if captain_team in st.session_state.cumulative_stats:
-            stats = st.session_state.cumulative_stats[captain_team]
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Matches", stats['P'])
-            col2.metric("Points", stats['Pts'])
-            col3.metric("Goal Diff", stats['GD'])
-            # Calculate position
-            standings = get_cumulative_standings()
-            standings.sort(key=lambda x: (x['Pts'], x['GD'], x['GF']), reverse=True)
-            position = next((i+1 for i, s in enumerate(standings) if s['Team'] == captain_team), "—")
-            col4.metric("Position", position)
-        
-        # Tournament info for captain
-        st.markdown("### 🏆 TOURNAMENT INFO")
-        st.info(f"**Format:** {st.session_state.format}")
-        st.info(f"**Current Round:** {st.session_state.current_round}")
-        
-        if "Survival" in st.session_state.format:
-            st.warning("💀 **Battle Royale Mode:** Points carry over between rounds!")
-        
-        # Show past champions to captain
-        if st.session_state.past_champions:
-            st.markdown("### 🏆 PAST CHAMPIONS")
-            for champ in st.session_state.past_champions[:3]:  # Show last 3
-                st.markdown(f"**{champ['year']}:** {champ['champion']} ({champ['format']})")
+            
+            # Captain's team info
+            st.markdown("### 📊 YOUR TEAM STATS")
+            
+            if captain_team in st.session_state.cumulative_stats:
+                stats = st.session_state.cumulative_stats[captain_team]
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Matches", stats['P'])
+                col2.metric("Points", stats['Pts'])
+                col3.metric("Goal Diff", stats['GD'])
+                # Calculate position
+                standings = get_cumulative_standings()
+                standings.sort(key=lambda x: (x['Pts'], x['GD'], x['GF']), reverse=True)
+                position = next((i+1 for i, s in enumerate(standings) if s['Team'] == captain_team), "—")
+                col4.metric("Position", position)
+            
+            # Tournament info for captain
+            st.markdown("### 🏆 TOURNAMENT INFO")
+            st.info(f"**Format:** {st.session_state.format}")
+            st.info(f"**Current Round:** {st.session_state.current_round}")
+            
+            if "Survival" in st.session_state.format:
+                st.warning("💀 **Battle Royale Mode:** Points carry over between rounds!")
+            
+            # Show past champions to captain
+            if st.session_state.past_champions:
+                st.markdown("### 🏆 PAST CHAMPIONS")
+                for champ in st.session_state.past_champions[:3]:  # Show last 3
+                    st.markdown(f"**{champ['year']}:** {champ['champion']} ({champ['format']})")
     
     else:
         # Admin or public view - full interface
@@ -2797,16 +3095,29 @@ else:
                         
                         h, a = match[0], match[1]
                         mid = f"{h}v{a}_{i}"
-                        res = st.session_state.results.get(mid)
+                        result_status = get_match_result_status(mid)
                         
                         with col1 if i % 2 == 0 else col2:
                             match_html = f"""
                             <div class='bracket-match'>
                                 <strong>{h}</strong> vs <strong>{a}</strong><br>
-                                {f"<strong>{res[0]} - {res[1]}</strong>" if res else "Not played"}
-                                {f" (P: {res[2]}-{res[3]})" if res and len(res) > 2 else ""}
-                            </div>
                             """
+                            
+                            if result_status == "approved" and mid in st.session_state.results:
+                                res = st.session_state.results[mid]
+                                match_html += f"<strong>{res[0]} - {res[1]}</strong>"
+                                if len(res) > 2:
+                                    match_html += f" (P: {res[2]}-{res[3]})"
+                            elif result_status == "pending":
+                                if mid in st.session_state.fixed_results:
+                                    fixed = st.session_state.fixed_results[mid]
+                                    match_html += f"<span style='color: #FF9800; font-weight: bold;'>{fixed['home_score']} - {fixed['away_score']} (Pending)</span>"
+                                else:
+                                    match_html += "<span style='color: #FF9800;'>Pending</span>"
+                            else:
+                                match_html += "Not played"
+                            
+                            match_html += "</div>"
                             st.markdown(match_html, unsafe_allow_html=True)
                     
                     # Show tournament progress
@@ -2916,12 +3227,12 @@ else:
                         badge = st.session_state.team_badges.get(team, "🛡️")
                         
                         rows.append({
-                            "#": idx + 1,
-                            "Club": f"{badge} {team}",
-                            "P": s['P'], "W": s['W'], "D": s['D'], "L": s['L'], 
-                            "GF": s['GF'], "GA": s['GA'], "GD": s['GD'], 
-                            "Pts": s['Pts']
-                        })
+    "#": idx + 1,
+    "Club": f"{badge} {team}",
+    "P": s['P'], "W": s['W'], "D": s['D'], "L": s['L'], 
+    "GF": s['GF'], "GA": s['GA'], "GD": s['GD'], 
+    "Pts": s['Pts']
+})
                     
                     if rows:
                         df = pd.DataFrame(rows)
@@ -2936,10 +3247,12 @@ else:
 
         # --- TAB 2: Match Center ---
         with tabs[1]:
-            # Team filter
+            # Team filter - only show for admin or public view
             filter_options = ["All"] + st.session_state.active_teams
             if st.session_state.user_mode == "Captain" and st.session_state.captain_pin_verified:
+                # Captains automatically filter to their own team
                 filter_team = st.session_state.logged_in_captain
+                st.info(f"📋 Showing matches for your team: **{filter_team}**")
             else:
                 filter_team = st.selectbox("FILTER TEAM", filter_options, key="team_filter")
             
@@ -2948,10 +3261,12 @@ else:
                 if len(fix) < 2: continue
                 h, a = fix[0], fix[1]
                 
-                if filter_team != "All" and filter_team not in [h, a]: continue
+                # Filter logic
+                if filter_team != "All" and filter_team not in [h, a]: 
+                    continue
                 
                 mid = f"{h}v{a}_{i}" 
-                res = st.session_state.results.get(mid)
+                result_status = get_match_result_status(mid)
                 
                 is_sudden_death = (
                     st.session_state.battle_phase == "Phase 3: The Standoff" and 
@@ -2976,28 +3291,47 @@ else:
                         c1.markdown(f"<h3 style='text-align:right'>{h} {b1}</h3>", unsafe_allow_html=True)
                         c3.markdown(f"<h3 style='text-align:left'>{b2} {a}</h3>", unsafe_allow_html=True)
                     
-                    # Score display
-                    if res:
+                    # Score display based on status
+                    if result_status == "approved" and mid in st.session_state.results:
+                        res = st.session_state.results[mid]
                         sc = f"{res[0]} - {res[1]}"
                         if len(res) > 2: sc += f"\n(P: {res[2]}-{res[3]})"
                         score_color = "#ef4444" if is_sudden_death else "#F1E194"
                         c2.markdown(f"<h1 style='text-align:center; color:{score_color}'>{sc}</h1>", unsafe_allow_html=True)
+                    elif result_status == "pending":
+                        if mid in st.session_state.fixed_results:
+                            fixed = st.session_state.fixed_results[mid]
+                            sc = f"{fixed['home_score']} - {fixed['away_score']}"
+                            c2.markdown(f"<h1 style='text-align:center; color:#FF9800'>{sc}</h1>", unsafe_allow_html=True)
+                            c2.markdown("<div style='text-align:center; font-size: 0.8rem; color:#FF9800'>⏳ Pending Approval</div>", unsafe_allow_html=True)
+                        else:
+                            c2.markdown(f"<h1 style='text-align:center; color:#FF9800'>VS</h1>", unsafe_allow_html=True)
+                            c2.markdown("<div style='text-align:center; font-size: 0.8rem; color:#FF9800'>Result Pending</div>", unsafe_allow_html=True)
                     else: 
                         if is_sudden_death:
                             c2.markdown(f"<h1 style='text-align:center; color:#ef4444'>⚔️ VS ⚔️</h1>", unsafe_allow_html=True)
                         else:
                             c2.markdown(f"<h1 style='text-align:center; color:#946c1e'>VS</h1>", unsafe_allow_html=True)
                     
-                    # Match reporting (Admin only or direct entry)
+                    # Admin controls for match reporting
                     if st.session_state.admin_unlock and not st.session_state.champion: 
-                        expander_title = f"📝 ENTER RESULT"
+                        expander_title = f"📝 ENTER/RESET RESULT"
                         with st.expander(expander_title, expanded=False):
                             if is_sudden_death:
                                 st.warning("⚔️ **SUDDEN DEATH SEMI-FINAL:** Loser is ELIMINATED!")
                             
                             ac1, ac2 = st.columns(2)
-                            s1 = ac1.number_input(f"{h}", 0, 20, key=f"s1_{mid}") 
-                            s2 = ac2.number_input(f"{a}", 0, 20, key=f"s2_{mid}") 
+                            
+                            # Show current result if exists
+                            current_home_score = 0
+                            current_away_score = 0
+                            if result_status == "approved" and mid in st.session_state.results:
+                                res = st.session_state.results[mid]
+                                current_home_score = res[0]
+                                current_away_score = res[1]
+                            
+                            s1 = ac1.number_input(f"{h}", 0, 20, value=current_home_score, key=f"s1_{mid}") 
+                            s2 = ac2.number_input(f"{a}", 0, 20, value=current_away_score, key=f"s2_{mid}") 
                             p1, p2 = 0, 0
                             
                             # Show penalties for knockout matches or draws in non-league
@@ -3010,8 +3344,8 @@ else:
 
                             sc1, sc2 = st.columns(2)
                             prev = st.session_state.match_meta.get(mid, {})
-                            gs1 = sc1.text_input("Scorers (Home)", value=prev.get('h_s',''), key=f"g1_{mid}", placeholder="Messi (2), ...")
-                            gs2 = sc2.text_input("Scorers (Away)", value=prev.get('a_s',''), key=f"g2_{mid}")
+                            gs1_input = sc1.text_input("Scorers (Home)", value=prev.get('h_s',''), key=f"g1_{mid}", placeholder="Messi (2), ...")
+                            gs2_input = sc2.text_input("Scorers (Away)", value=prev.get('a_s',''), key=f"g2_{mid}")
                             ha = sc1.text_input("Assists (Home)", value=prev.get('h_a',''), key=f"ah_{mid}")
                             aa = sc2.text_input("Assists (Away)", value=prev.get('a_a',''), key=f"aa_{mid}")
                             hr = sc1.text_input("Red Cards (Home)", value=prev.get('h_r',''), key=f"rh_{mid}")
@@ -3020,15 +3354,23 @@ else:
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.button("✅ CONFIRM RESULT", key=f"b_{mid}", use_container_width=True):
-                                    # Use the safe update function
-                                    update_match_result_safely(mid, h, a, s1, s2, p1, p2, gs1, gs2, ha, aa, hr, ar)
+                                    # Use the safe update function and mark as approved
+                                    update_match_result_safely(mid, h, a, s1, s2, p1, p2, gs1_input, gs2_input, ha, aa, hr, ar)
+                                    st.session_state.admin_approved_results[mid] = True
+                                    
+                                    # Remove from fixed results if exists
+                                    if mid in st.session_state.fixed_results:
+                                        del st.session_state.fixed_results[mid]
+                                    
+                                    # Remove from pending reports
+                                    st.session_state.pending_reports = [r for r in st.session_state.pending_reports if r['match_id'] != mid]
                                     
                                     save_data_internal()
                                     st.success("✅ Match recorded! Table updated.")
                                     safe_rerun()
                             
                             with col2:
-                                if res and st.button("🔄 RESET MATCH", key=f"reset_{mid}", use_container_width=True):
+                                if result_status != "not_played" and st.button("🔄 RESET MATCH", key=f"reset_{mid}", use_container_width=True):
                                     if reset_match_result(mid):
                                         save_data_internal()
                                         st.warning("Match reset!")
