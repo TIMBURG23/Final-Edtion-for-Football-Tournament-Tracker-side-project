@@ -12,7 +12,7 @@ import hashlib
 import io
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="DLS Ultra Manager", page_icon="⚽", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="DLS Ultra Admin", page_icon="⚽", layout="wide", initial_sidebar_state="collapsed")
 
 # --- COMPATIBILITY SHIM (Fixes the Button Issue on Cloud & Local) ---
 def safe_rerun():
@@ -344,7 +344,7 @@ def init_defaults():
         'captain_pins': {},  # team_name: pin
         'pending_reports': [],  # List of pending match reports
         'tournament_code': DEFAULT_TOURNAMENT_CODE,
-        'user_mode': 'Manager',  # 'Manager' or 'Captain'
+        'user_mode': 'Admin',  # 'Admin' or 'Captain'
         'logged_in_captain': None,
         'captain_pin_verified': False,
         'team_passwords': {},  # team_name: hashed_password
@@ -382,7 +382,7 @@ def load_data():
                 st.session_state.captain_pins = data.get('captain_pins', {})
                 st.session_state.pending_reports = data.get('pending_reports', [])
                 st.session_state.tournament_code = data.get('tournament_code', DEFAULT_TOURNAMENT_CODE)
-                st.session_state.user_mode = data.get('user_mode', 'Manager')
+                st.session_state.user_mode = data.get('user_mode', 'Admin')
                 st.session_state.logged_in_captain = data.get('logged_in_captain', None)
                 st.session_state.captain_pin_verified = data.get('captain_pin_verified', False)
                 st.session_state.team_passwords = data.get('team_passwords', {})
@@ -890,10 +890,10 @@ def reset_match_result(match_id):
         return True
     return False
 
-# --- NEW: MANAGER CAPTAIN CONTROLS ---
+# --- NEW: ADMIN CAPTAIN CONTROLS ---
 
 def view_all_captain_pins():
-    """Display all captain PINs for manager"""
+    """Display all captain PINs for admin"""
     if not st.session_state.teams:
         return "No teams registered yet."
     
@@ -1742,8 +1742,8 @@ if 'data_loaded' not in st.session_state:
     st.session_state.data_loaded = True
 
 # Initialize session-specific admin access
-if 'manager_pin_verified' not in st.session_state:
-    st.session_state.manager_pin_verified = False
+if 'admin_pin_verified' not in st.session_state:
+    st.session_state.admin_pin_verified = False
 if 'admin_unlock' not in st.session_state:
     st.session_state.admin_unlock = False
 
@@ -1784,13 +1784,13 @@ else:
 with st.sidebar:
     # User Mode Selector
     st.markdown("### 👤 USER MODE")
-    user_mode = st.radio("Select Mode", ["Manager", "Team Captain"], 
+    user_mode = st.radio("Select Mode", ["Admin", "Team Captain"], 
                         key="user_mode_selector",
-                        index=0 if st.session_state.user_mode == "Manager" else 1)
+                        index=0 if st.session_state.user_mode == "Admin" else 1)
     
     if user_mode != st.session_state.user_mode:
         st.session_state.user_mode = user_mode
-        if user_mode == "Manager":
+        if user_mode == "Admin":
             st.session_state.logged_in_captain = None
             st.session_state.captain_pin_verified = False
         save_data_internal()
@@ -1798,19 +1798,19 @@ with st.sidebar:
     
     st.markdown("---")
     
-    if st.session_state.user_mode == "Manager":
-        # MANAGER MODE
-        st.markdown("### 🔐 MANAGER ACCESS")
+    if st.session_state.user_mode == "Admin":
+        # ADMIN MODE
+        st.markdown("### 🔐 ADMIN ACCESS")
         
         # Session-specific PIN verification
-        if not st.session_state.manager_pin_verified:
+        if not st.session_state.admin_pin_verified:
             pin = st.text_input("ENTER ADMIN PIN", type="password", key="pin_input")
             
             col1, col2 = st.columns([3, 1])
             with col2:
-                if st.button("🔓 UNLOCK", key="pin_unlock_btn", use_container_width=True):
+                if st.button("🔓 ", key="pin_unlock_btn", use_container_width=True):
                     if pin == "0209":
-                        st.session_state.manager_pin_verified = True
+                        st.session_state.admin_pin_verified = True
                         st.session_state.admin_unlock = True
                         st.success("Admin access granted!")
                         safe_rerun()
@@ -1818,9 +1818,9 @@ with st.sidebar:
                         st.error("Incorrect PIN!")
             
             if not pin:
-                st.info("Enter PIN '0209' for manager access")
+                st.info("Enter PIN for ADMIN access")
         else:
-            # MANAGER ACCESS GRANTED - Show all manager controls
+            # ADMIN ACCESS GRANTED - Show all admin controls
             st.success("✅ ADMIN ACCESS GRANTED")
             
             # Pending reports notification
@@ -2149,12 +2149,12 @@ with st.sidebar:
                             if st.button("👑 FORCE DECLARE CHAMPION", key="force_champion_btn", type="secondary"):
                                 st.session_state.champion = force_champion
                                 add_past_champion(force_champion, datetime.now().year, st.session_state.format)
-                                st.session_state.news.insert(0, f"🏆 {force_champion} declared champion by manager!")
+                                st.session_state.news.insert(0, f"🏆 {force_champion} declared champion by admin!")
                                 save_data_internal()
                                 st.success(f"{force_champion} declared champion!")
                                 safe_rerun()
             
-            # Debug tools (Manager only)
+            # Debug tools (Admin only)
             st.markdown("### 🐛 DEBUG TOOLS")
             
             if st.button("🔄 Refresh View", key="refresh_view_btn", use_container_width=True):
@@ -2189,7 +2189,7 @@ with st.sidebar:
                         st.write(f"{log['timestamp']}: {log['action']}")
             
             if st.button("🔒 LOGOUT", key="logout_btn", use_container_width=True):
-                st.session_state.manager_pin_verified = False
+                st.session_state.admin_pin_verified = False
                 st.session_state.admin_unlock = False
                 st.session_state.logged_in_captain = None
                 st.session_state.captain_pin_verified = False
@@ -2334,10 +2334,10 @@ if not st.session_state.started:
                 </div>
                 """, unsafe_allow_html=True)
     
-    # Manager-only section for starting tournament
+    # Admin-only section for starting tournament
     if st.session_state.admin_unlock:
         st.markdown("---")
-        st.markdown("### ⚙️ MANAGER CONTROLS")
+        st.markdown("### ⚙️ ADMIN CONTROLS")
         
         fmt = st.radio("SELECT TOURNAMENT FORMAT", 
                       ["Home & Away League", "World Cup (Groups + Knockout)", 
@@ -2480,7 +2480,7 @@ else:
         
         st.markdown("---")
     
-    # Pending reports approval section (Manager only)
+    # Pending reports approval section (Admin only)
     if st.session_state.admin_unlock and st.session_state.pending_reports:
         st.markdown("### ⏳ PENDING REPORTS")
         
@@ -2567,7 +2567,7 @@ else:
                         # Captain reporting form
                         expander_title = f"📝 SUBMIT MATCH REPORT"
                         with st.expander(expander_title, expanded=False):
-                            st.warning("Your report will be sent for manager approval")
+                            st.warning("Your report will be sent for admin approval")
                             
                             # Determine if captain's team is home or away
                             is_home = h == captain_team
@@ -2631,7 +2631,7 @@ else:
                                     report = submit_match_report(mid, h, a, s2, s1, gs_opp, gs, ha_opp, ha, hr_opp, hr, p2, p1, captain_team)
                                 
                                 save_data_internal()
-                                st.success("✅ Report submitted! Awaiting manager approval.")
+                                st.success("✅ Report submitted! Awaiting Admin approval.")
                                 safe_rerun()
                     
                     st.markdown("</div>", unsafe_allow_html=True)
@@ -2666,7 +2666,7 @@ else:
                 st.markdown(f"**{champ['year']}:** {champ['champion']} ({champ['format']})")
     
     else:
-        # Manager or public view - full interface
+        # Admin or public view - full interface
         
         # Show Past Champions (Public View)
         if st.session_state.past_champions:
@@ -2988,7 +2988,7 @@ else:
                         else:
                             c2.markdown(f"<h1 style='text-align:center; color:#946c1e'>VS</h1>", unsafe_allow_html=True)
                     
-                    # Match reporting (Manager only or direct entry)
+                    # Match reporting (Admin only or direct entry)
                     if st.session_state.admin_unlock and not st.session_state.champion: 
                         expander_title = f"📝 ENTER RESULT"
                         with st.expander(expander_title, expanded=False):
