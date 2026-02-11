@@ -325,6 +325,12 @@ st.markdown("""
         opacity: 0.6;
         cursor: not-allowed;
     }
+    
+    /* EDIT MODE HIGHLIGHT */
+    .edit-mode {
+        background: linear-gradient(90deg, rgba(255, 152, 0, 0.2) 0%, transparent 100%);
+        border: 2px solid #FF9800;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -439,58 +445,63 @@ def load_data():
 
 def save_data_internal():
     """Save all data including captain's portal data"""
-    data = {
-        # Existing data
-        "teams": st.session_state.teams,
-        "format": st.session_state.format,
-        "current_round": st.session_state.current_round,
-        "fixtures": st.session_state.fixtures,
-        "results": st.session_state.results,
-        "match_meta": st.session_state.match_meta,
-        "started": st.session_state.started,
-        "groups": st.session_state.groups,
-        "champion": st.session_state.champion,
-        "active_teams": st.session_state.active_teams,
-        "team_badges": st.session_state.team_badges,
-        "news": st.session_state.news,
-        "legacy_stats": st.session_state.legacy_stats,
-        "team_history": st.session_state.team_history,
-        "eliminated_teams": st.session_state.eliminated_teams,
-        "round_number": st.session_state.round_number,
-        "survival_history": st.session_state.survival_history,
-        "battle_phase": st.session_state.battle_phase,
-        "bye_team": st.session_state.bye_team,
-        "cumulative_stats": st.session_state.cumulative_stats,
-        "cumulative_player_stats": st.session_state.cumulative_player_stats,
-        "sudden_death_round": st.session_state.sudden_death_round,
-        "phase1_match_count": st.session_state.phase1_match_count,
-        "world_cup_stage": st.session_state.world_cup_stage,
-        "knockout_bracket": st.session_state.knockout_bracket,
-        "knockout_round": st.session_state.knockout_round,
-        "knockout_winners": st.session_state.knockout_winners,
-        "match_history": st.session_state.match_history,
-        
-        # Captain's Portal data
-        "captain_pins": st.session_state.captain_pins,
-        "pending_reports": st.session_state.pending_reports,
-        "tournament_code": st.session_state.tournament_code,
-        "user_mode": st.session_state.user_mode,
-        "logged_in_captain": st.session_state.logged_in_captain,
-        "captain_pin_verified": st.session_state.captain_pin_verified,
-        "team_passwords": st.session_state.team_passwords,
-        "captain_logs": st.session_state.captain_logs,
-        
-        # Past Champions
-        "past_champions": st.session_state.past_champions,
-        "champion_history": st.session_state.champion_history,
-        
-        # Fixed Results data
-        "fixed_results": st.session_state.fixed_results,
-        "captain_fixed_matches": st.session_state.captain_fixed_matches,
-        "admin_approved_results": st.session_state.admin_approved_results
-    }
-    with open(DB_FILE, "w") as f: 
-        json.dump(data, f)
+    try:
+        data = {
+            # Existing data
+            "teams": st.session_state.teams,
+            "format": st.session_state.format,
+            "current_round": st.session_state.current_round,
+            "fixtures": st.session_state.fixtures,
+            "results": st.session_state.results,
+            "match_meta": st.session_state.match_meta,
+            "started": st.session_state.started,
+            "groups": st.session_state.groups,
+            "champion": st.session_state.champion,
+            "active_teams": st.session_state.active_teams,
+            "team_badges": st.session_state.team_badges,
+            "news": st.session_state.news,
+            "legacy_stats": st.session_state.legacy_stats,
+            "team_history": st.session_state.team_history,
+            "eliminated_teams": st.session_state.eliminated_teams,
+            "round_number": st.session_state.round_number,
+            "survival_history": st.session_state.survival_history,
+            "battle_phase": st.session_state.battle_phase,
+            "bye_team": st.session_state.bye_team,
+            "cumulative_stats": st.session_state.cumulative_stats,
+            "cumulative_player_stats": st.session_state.cumulative_player_stats,
+            "sudden_death_round": st.session_state.sudden_death_round,
+            "phase1_match_count": st.session_state.phase1_match_count,
+            "world_cup_stage": st.session_state.world_cup_stage,
+            "knockout_bracket": st.session_state.knockout_bracket,
+            "knockout_round": st.session_state.knockout_round,
+            "knockout_winners": st.session_state.knockout_winners,
+            "match_history": st.session_state.match_history,
+            
+            # Captain's Portal data
+            "captain_pins": st.session_state.captain_pins,
+            "pending_reports": st.session_state.pending_reports,
+            "tournament_code": st.session_state.tournament_code,
+            "user_mode": st.session_state.user_mode,
+            "logged_in_captain": st.session_state.logged_in_captain,
+            "captain_pin_verified": st.session_state.captain_pin_verified,
+            "team_passwords": st.session_state.team_passwords,
+            "captain_logs": st.session_state.captain_logs,
+            
+            # Past Champions
+            "past_champions": st.session_state.past_champions,
+            "champion_history": st.session_state.champion_history,
+            
+            # Fixed Results data
+            "fixed_results": st.session_state.fixed_results,
+            "captain_fixed_matches": st.session_state.captain_fixed_matches,
+            "admin_approved_results": st.session_state.admin_approved_results
+        }
+        with open(DB_FILE, "w") as f: 
+            json.dump(data, f)
+        return True
+    except Exception as e:
+        st.error(f"Failed to save data: {e}")
+        return False
 
 # --- NEW FEATURE: DATA MANAGEMENT FUNCTIONS ---
 
@@ -705,8 +716,30 @@ def hash_password(password):
     """Simple hash for password storage"""
     return hashlib.sha256(password.encode()).hexdigest()
 
+def validate_team_name(team_name):
+    """Validate team name to prevent problematic characters"""
+    if not team_name:
+        return False, "Team name cannot be empty"
+    
+    # Check for forbidden characters
+    forbidden_chars = ['_', 'v', '|', '/', '\\', '"', "'"]
+    for char in forbidden_chars:
+        if char in team_name:
+            return False, f"Team name cannot contain '{char}' character"
+    
+    # Check length
+    if len(team_name) > 50:
+        return False, "Team name too long (max 50 characters)"
+    
+    return True, ""
+
 def add_team_with_captain(team_name):
     """Add a team with captain credentials"""
+    # Validate team name
+    is_valid, error_msg = validate_team_name(team_name)
+    if not is_valid:
+        return error_msg, None, None
+    
     if team_name and team_name not in st.session_state.teams:
         # Add team
         st.session_state.teams.append(team_name)
@@ -855,6 +888,44 @@ def submit_match_report(match_id, home_team, away_team, home_score, away_score,
     
     return report
 
+def update_pending_report(report_id, home_score, away_score, home_scorers="", away_scorers="", 
+                         home_assists="", away_assists="", home_reds="", away_reds="", 
+                         home_pens=0, away_pens=0):
+    """Update a pending report before approval (admin only)"""
+    for report in st.session_state.pending_reports:
+        if report['report_id'] == report_id:
+            report['home_score'] = home_score
+            report['away_score'] = away_score
+            report['home_scorers'] = home_scorers
+            report['away_scorers'] = away_scorers
+            report['home_assists'] = home_assists
+            report['away_assists'] = away_assists
+            report['home_reds'] = home_reds
+            report['away_reds'] = away_reds
+            report['home_pens'] = home_pens
+            report['away_pens'] = away_pens
+            
+            # Update fixed result if exists
+            match_id = report['match_id']
+            if match_id in st.session_state.fixed_results:
+                st.session_state.fixed_results[match_id].update({
+                    'home_score': home_score,
+                    'away_score': away_score,
+                    'home_scorers': home_scorers,
+                    'away_scorers': away_scorers,
+                    'home_assists': home_assists,
+                    'away_assists': away_assists,
+                    'home_reds': home_reds,
+                    'away_reds': away_reds,
+                    'home_pens': home_pens,
+                    'away_pens': away_pens
+                })
+            
+            log_captain_action(f"Updated pending report: {report['home_team']} {home_score}-{away_score} {report['away_team']}")
+            return True
+    
+    return False
+
 def approve_match_report(report_id):
     """Approve a pending match report"""
     report = next((r for r in st.session_state.pending_reports if r['report_id'] == report_id), None)
@@ -912,15 +983,18 @@ def reject_match_report(report_id):
 def reset_match_result(match_id):
     """Reset a match result (admin only)"""
     if match_id in st.session_state.results:
-        # Get match details
-        if "_" in match_id:
-            base = match_id.split('_')[0]
-        else:
-            base = match_id
-        
-        if "v" in base:
+        try:
+            # Get match details
+            if "_" in match_id:
+                base = match_id.split('_')[0]
+            else:
+                base = match_id
+            
+            if "v" not in base:
+                return False
+            
             h, a = base.split('v')
-        else:
+        except Exception:
             return False
         
         # Remove from results
@@ -960,15 +1034,20 @@ def reset_match_result(match_id):
 
 def captain_can_fix_match(match_id, captain_team):
     """Check if a captain can fix a match result"""
-    if "_" not in match_id or "v" not in match_id:
+    try:
+        if "_" not in match_id or "v" not in match_id:
+            return False
+        
+        base = match_id.split('_')[0]
+        if 'v' not in base:
+            return False
+        
+        h, a = base.split('v')
+        
+        # Captain can only fix matches involving their team
+        return captain_team in [h, a]
+    except Exception:
         return False
-    
-    # Extract teams from match_id
-    base = match_id.split('_')[0]
-    h, a = base.split('v')
-    
-    # Captain can only fix matches involving their team
-    return captain_team in [h, a]
 
 def fix_match_result_by_captain(match_id, home_team, away_team, home_score, away_score,
                                home_scorers="", away_scorers="", home_assists="", 
@@ -1131,6 +1210,54 @@ def remove_past_champion(index):
         
         # Log the action
         log_captain_action(f"Removed past champion: {removed['champion']} ({removed['year']})")
+        
+        return True
+    return False
+
+# --- NEW: MANUAL PLAYER STATS MANAGEMENT ---
+
+def add_player_stat(player_name, team_name, stat_type, count=1):
+    """Manually add player stat"""
+    player_name = player_name.strip().title()
+    if not player_name:
+        return False
+    
+    player_id = f"{player_name}|{team_name}"
+    
+    # Initialize if not exists
+    if player_id not in st.session_state.cumulative_player_stats:
+        st.session_state.cumulative_player_stats[player_id] = {
+            'Name': player_name,
+            'Team': team_name,
+            'G': 0, 'A': 0, 'R': 0
+        }
+    
+    # Add stat
+    st.session_state.cumulative_player_stats[player_id][stat_type] += count
+    
+    # Remove player if all stats are zero
+    player_stats = st.session_state.cumulative_player_stats[player_id]
+    if player_stats['G'] == 0 and player_stats['A'] == 0 and player_stats['R'] == 0:
+        del st.session_state.cumulative_player_stats[player_id]
+    
+    return True
+
+def delete_player_stat(player_id):
+    """Delete a player's stats entirely"""
+    if player_id in st.session_state.cumulative_player_stats:
+        del st.session_state.cumulative_player_stats[player_id]
+        return True
+    return False
+
+def edit_player_stat(player_id, stat_type, new_value):
+    """Edit a specific player stat"""
+    if player_id in st.session_state.cumulative_player_stats:
+        st.session_state.cumulative_player_stats[player_id][stat_type] = max(0, new_value)
+        
+        # Remove player if all stats are zero
+        player_stats = st.session_state.cumulative_player_stats[player_id]
+        if player_stats['G'] == 0 and player_stats['A'] == 0 and player_stats['R'] == 0:
+            del st.session_state.cumulative_player_stats[player_id]
         
         return True
     return False
@@ -1572,14 +1699,17 @@ def advance_world_cup_knockout():
             stats = {'Team': team, 'P': 0, 'W': 0, 'D': 0, 'L': 0, 'GF': 0, 'GA': 0, 'GD': 0, 'Pts': 0}
             
             for mid, res in st.session_state.results.items():
-                if "_" in mid:
-                    base = mid.split('_')[0]
-                else:
-                    base = mid
-                
-                if "v" in base:
+                try:
+                    if "_" in mid:
+                        base = mid.split('_')[0]
+                    else:
+                        base = mid
+                    
+                    if "v" not in base:
+                        continue
+                    
                     h, a = base.split('v')
-                else:
+                except:
                     continue
                 
                 if h == team or a == team:
@@ -1741,7 +1871,16 @@ def update_match_result_safely(mid, h, a, s1, s2, p1=0, p2=0, gs1="", gs2="", ha
         old_s1, old_s2 = old_res['score']
         old_p1, old_p2 = old_res.get('pens', (0, 0))
         
-        # Reverse old stats
+        # Store old player strings to remove them
+        old_meta = st.session_state.match_meta.get(mid, {})
+        old_gs1 = old_meta.get('h_s', '')
+        old_gs2 = old_meta.get('a_s', '')
+        old_ha = old_meta.get('h_a', '')
+        old_aa = old_meta.get('a_a', '')
+        old_hr = old_meta.get('h_r', '')
+        old_ar = old_meta.get('a_r', '')
+        
+        # Remove old team stats
         if h in st.session_state.cumulative_stats:
             stats = st.session_state.cumulative_stats[h]
             stats['P'] -= 1
@@ -1773,6 +1912,45 @@ def update_match_result_safely(mid, h, a, s1, s2, p1=0, p2=0, gs1="", gs2="", ha
             else:
                 stats['D'] -= 1
                 stats['Pts'] -= 1
+        
+        # Remove old player stats
+        def remove_player_stats(raw_str, team, stat_type):
+            if not raw_str: return
+            raw_parts = raw_str.split(',')
+            for raw_player in raw_parts:
+                raw_player = raw_player.strip()
+                if not raw_player: continue
+                
+                count = 1
+                name = raw_player
+                
+                m_br = re.search(r'^(.*?)\s*\((\d+)\)$', raw_player)
+                if m_br:
+                    name = m_br.group(1).strip()
+                    count = int(m_br.group(2))
+                m_x = re.search(r'^(.*?)\s*[xX](\d+)$', raw_player)
+                if m_x:
+                    name = m_x.group(1).strip()
+                    count = int(m_x.group(2))
+                
+                name = name.strip().title()
+                if not name: continue
+                
+                player_id = f"{name}|{team}"
+                
+                if player_id in st.session_state.cumulative_player_stats:
+                    st.session_state.cumulative_player_stats[player_id][stat_type] -= count
+                    # Remove player if all stats are zero or negative
+                    player_stats = st.session_state.cumulative_player_stats[player_id]
+                    if player_stats['G'] <= 0 and player_stats['A'] <= 0 and player_stats['R'] <= 0:
+                        del st.session_state.cumulative_player_stats[player_id]
+        
+        remove_player_stats(old_gs1, h, 'G')
+        remove_player_stats(old_gs2, a, 'G')
+        remove_player_stats(old_ha, h, 'A')
+        remove_player_stats(old_aa, a, 'A')
+        remove_player_stats(old_hr, h, 'R')
+        remove_player_stats(old_ar, a, 'R')
     
     # Initialize cumulative stats if not exists
     if h not in st.session_state.cumulative_stats:
@@ -1830,12 +2008,6 @@ def update_match_result_safely(mid, h, a, s1, s2, p1=0, p2=0, gs1="", gs2="", ha
         'h_r': hr, 'a_r': ar
     }
     
-    # Update player stats (remove old ones first if exists)
-    if was_processed:
-        # Remove old player stats (simplified approach - we'll just reset and re-add)
-        # For simplicity, we'll just update with new values
-        pass
-    
     # Add new player stats
     process_player_string_update(gs1, h, 'G')
     process_player_string_update(gs2, a, 'G')
@@ -1864,10 +2036,10 @@ def verify_data_consistency():
             else:
                 base = mid
             
-            if "v" in base:
-                h, a = base.split('v')
-            else:
+            if "v" not in base:
                 continue
+            
+            h, a = base.split('v')
         except:
             continue
         
@@ -2023,12 +2195,14 @@ with st.sidebar:
                 if st.button("➕ ADD TEAM", key="add_team_btn"):
                     if new_team and new_team not in st.session_state.teams:
                         credentials_msg, pin, password = add_team_with_captain(new_team)
-                        if credentials_msg:
+                        if credentials_msg and pin:
                             save_data_internal()
                             with st.expander("✅ CREDENTIALS - SAVE THESE!", expanded=True):
                                 st.markdown(credentials_msg)
                             st.success(f"Team '{new_team}' added!")
                             safe_rerun()
+                        elif credentials_msg:
+                            st.error(credentials_msg)
                     elif new_team in st.session_state.teams:
                         st.error("Team already exists!")
             
@@ -2199,10 +2373,91 @@ with st.sidebar:
             
             st.markdown("---")
             
+            # --- MANUAL PLAYER STATS EDITOR ---
+            st.markdown("### ⚽ PLAYER STATS EDITOR")
+            
+            with st.expander("📝 MANUAL STATS CONTROL", expanded=False):
+                if st.session_state.teams:
+                    st.markdown("#### Add Player Stat")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        player_name_input = st.text_input("Player Name", key="manual_player_name")
+                        team_select = st.selectbox("Team", st.session_state.teams, key="manual_team_select")
+                    with col2:
+                        stat_type = st.selectbox("Stat Type", ["G", "A", "R"], key="manual_stat_type")
+                        stat_count = st.number_input("Count", min_value=1, max_value=10, value=1, key="manual_stat_count")
+                    
+                    if st.button("➕ ADD STAT", key="manual_add_stat_btn"):
+                        if player_name_input:
+                            if add_player_stat(player_name_input, team_select, stat_type, stat_count):
+                                save_data_internal()
+                                st.success(f"Added {stat_count} {stat_type} for {player_name_input}")
+                                safe_rerun()
+                        else:
+                            st.error("Please enter a player name")
+                    
+                    st.markdown("#### Edit/Delete Player Stats")
+                    if st.session_state.cumulative_player_stats:
+                        # Create dataframe for editing
+                        player_data = []
+                        for player_id, stats in st.session_state.cumulative_player_stats.items():
+                            player_data.append({
+                                'ID': player_id,
+                                'Name': stats['Name'],
+                                'Team': stats['Team'],
+                                'Goals': stats['G'],
+                                'Assists': stats['A'],
+                                'Reds': stats['R']
+                            })
+                        
+                        df_players = pd.DataFrame(player_data)
+                        st.dataframe(df_players[['Name', 'Team', 'Goals', 'Assists', 'Reds']], 
+                                   hide_index=True, use_container_width=True)
+                        
+                        # Edit player
+                        player_to_edit = st.selectbox("Select player to edit", 
+                                                     ["Select..."] + [f"{p['Name']} ({p['Team']})" for p in player_data],
+                                                     key="edit_player_select")
+                        
+                        if player_to_edit != "Select...":
+                            selected_player = next(p for p in player_data if f"{p['Name']} ({p['Team']})" == player_to_edit)
+                            player_id = selected_player['ID']
+                            
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                new_goals = st.number_input("Goals", min_value=0, value=selected_player['Goals'], key="edit_goals")
+                            with col2:
+                                new_assists = st.number_input("Assists", min_value=0, value=selected_player['Assists'], key="edit_assists")
+                            with col3:
+                                new_reds = st.number_input("Reds", min_value=0, value=selected_player['Reds'], key="edit_reds")
+                            
+                            col_btn1, col_btn2 = st.columns(2)
+                            with col_btn1:
+                                if st.button("💾 UPDATE", key="update_player_btn"):
+                                    edit_player_stat(player_id, 'G', new_goals)
+                                    edit_player_stat(player_id, 'A', new_assists)
+                                    edit_player_stat(player_id, 'R', new_reds)
+                                    save_data_internal()
+                                    st.success("Player stats updated!")
+                                    safe_rerun()
+                            
+                            with col_btn2:
+                                if st.button("🗑️ DELETE", key="delete_player_btn", type="secondary"):
+                                    if delete_player_stat(player_id):
+                                        save_data_internal()
+                                        st.success("Player deleted!")
+                                        safe_rerun()
+                    else:
+                        st.info("No player stats to edit")
+                else:
+                    st.info("No teams available")
+            
+            st.markdown("---")
+            
             # --- PAST CHAMPIONS MANAGEMENT ---
             st.markdown("### 🏆 PAST CHAMPIONS")
             
-            with st.expander("📜 VIEW PAST CHAMPIONS", expanded=True):
+            with st.expander("📜 VIEW PAST CHAMPIONS", expanded=False):
                 if st.session_state.past_champions:
                     for idx, champ in enumerate(st.session_state.past_champions[:5]):  # Show last 5
                         st.markdown(f"""
@@ -2374,6 +2629,7 @@ with st.sidebar:
                 st.write(f"- Past Champions: {len(st.session_state.past_champions)}")
                 st.write(f"- Fixed Results (Pending): {len(st.session_state.fixed_results)}")
                 st.write(f"- Approved Results: {len(st.session_state.admin_approved_results)}")
+                st.write(f"- Player Stats: {len(st.session_state.cumulative_player_stats)}")
                 
                 with st.expander("View Captain Logs", expanded=False):
                     for log in st.session_state.captain_logs[-10:]:  # Last 10 logs
@@ -2399,9 +2655,9 @@ with st.sidebar:
                         else:
                             st.write("No matches found")
                         
-                        # Show all fixtures
+                        # Show all fixtures (increased from 20 to 50)
                         st.write(f"**All fixtures ({len(st.session_state.fixtures)}):**")
-                        for i, fix in enumerate(st.session_state.fixtures[:20]):  # First 20
+                        for i, fix in enumerate(st.session_state.fixtures[:50]):  # First 50
                             if len(fix) >= 2:
                                 st.write(f"{i}: {fix[0]} vs {fix[1]}")
             
@@ -2460,6 +2716,7 @@ with st.sidebar:
                 log_captain_action("Logged out", st.session_state.logged_in_captain)
                 st.session_state.logged_in_captain = None
                 st.session_state.captain_pin_verified = False
+                st.session_state.user_mode = "Admin"  # Reset to Admin mode on logout
                 save_data_internal()
                 safe_rerun()
 
@@ -2520,7 +2777,7 @@ if not st.session_state.started:
                     # Add team with captain credentials
                     credentials_msg, pin, password = add_team_with_captain(new_team_name)
                     
-                    if credentials_msg:
+                    if credentials_msg and pin:
                         save_data_internal()
                         
                         # Show credentials in an expander
@@ -2529,6 +2786,8 @@ if not st.session_state.started:
                         
                         st.success(f"Team '{new_team_name}' registered!")
                         safe_rerun()
+                    elif credentials_msg:
+                        st.error(credentials_msg)
                 elif new_team_name in st.session_state.teams:
                     st.error("Team name already taken!")
         elif entered_code and entered_code != st.session_state.tournament_code:
@@ -2543,7 +2802,7 @@ if not st.session_state.started:
             with cols[i % 4]:
                 # For public view, show masked PINs
                 pin = st.session_state.captain_pins.get(t, "N/A")
-                masked_pin = pin[:2] + "••••" if len(pin) > 2 else "••••"
+                masked_pin = pin[:2] + "••" if len(pin) > 2 else "••••"
                 st.markdown(f"""
                 <div class='glass-panel' style='text-align:center'>
                     <h1>{b}</h1>
@@ -2709,7 +2968,7 @@ else:
         
         st.markdown("---")
     
-    # Pending reports approval section (Admin only)
+    # Pending reports approval section (Admin only) - WITH EDIT CAPABILITY
     if st.session_state.admin_unlock and st.session_state.pending_reports:
         st.markdown("### ⏳ PENDING REPORTS")
         
@@ -2723,16 +2982,83 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                col1, col2, col3 = st.columns([2,1,1])
+                # Toggle edit mode
+                edit_key = f"edit_mode_{report['report_id']}"
+                if edit_key not in st.session_state:
+                    st.session_state[edit_key] = False
+                
+                col1, col2, col3, col4 = st.columns([2,1,1,1])
                 
                 with col1:
-                    with st.expander("📊 View Details", expanded=False):
-                        st.write(f"**Home Scorers:** {report['home_scorers'] or 'None'}")
-                        st.write(f"**Away Scorers:** {report['away_scorers'] or 'None'}")
-                        st.write(f"**Home Assists:** {report['home_assists'] or 'None'}")
-                        st.write(f"**Away Assists:** {report['away_assists'] or 'None'}")
-                        if report['home_pens'] > 0 or report['away_pens'] > 0:
-                            st.write(f"**Penalties:** {report['home_pens']}-{report['away_pens']}")
+                    with st.expander("📊 View/Edit Details", expanded=st.session_state.get(edit_key, False)):
+                        if not st.session_state.get(edit_key, False):
+                            # View mode
+                            st.write(f"**Home Scorers:** {report['home_scorers'] or 'None'}")
+                            st.write(f"**Away Scorers:** {report['away_scorers'] or 'None'}")
+                            st.write(f"**Home Assists:** {report['home_assists'] or 'None'}")
+                            st.write(f"**Away Assists:** {report['away_assists'] or 'None'}")
+                            if report['home_pens'] > 0 or report['away_pens'] > 0:
+                                st.write(f"**Penalties:** {report['home_pens']}-{report['away_pens']}")
+                            
+                            if st.button("✏️ Edit Report", key=f"enable_edit_{report['report_id']}"):
+                                st.session_state[edit_key] = True
+                                safe_rerun()
+                        else:
+                            # Edit mode
+                            st.markdown("<div class='edit-mode' style='padding: 10px; border-radius: 5px;'>", unsafe_allow_html=True)
+                            
+                            ec1, ec2 = st.columns(2)
+                            with ec1:
+                                edit_h_score = st.number_input(f"{report['home_team']} Score", 0, 20, value=report['home_score'], key=f"edit_hs_{report['report_id']}")
+                            with ec2:
+                                edit_a_score = st.number_input(f"{report['away_team']} Score", 0, 20, value=report['away_score'], key=f"edit_as_{report['report_id']}")
+                            
+                            # Penalties
+                            if edit_h_score == edit_a_score and "League" not in st.session_state.format:
+                                st.caption("Penalties")
+                                ecp1, ecp2 = st.columns(2)
+                                with ecp1:
+                                    edit_h_pens = st.number_input(f"{report['home_team']} Pens", 0, 20, value=report.get('home_pens', 0), key=f"edit_hp_{report['report_id']}")
+                                with ecp2:
+                                    edit_a_pens = st.number_input(f"{report['away_team']} Pens", 0, 20, value=report.get('away_pens', 0), key=f"edit_ap_{report['report_id']}")
+                            else:
+                                edit_h_pens = 0
+                                edit_a_pens = 0
+                            
+                            # Player stats
+                            st.caption("Player Statistics")
+                            esc1, esc2 = st.columns(2)
+                            with esc1:
+                                edit_h_scorers = st.text_input("Home Scorers", value=report.get('home_scorers', ''), key=f"edit_hsc_{report['report_id']}")
+                                edit_h_assists = st.text_input("Home Assists", value=report.get('home_assists', ''), key=f"edit_ha_{report['report_id']}")
+                                edit_h_reds = st.text_input("Home Reds", value=report.get('home_reds', ''), key=f"edit_hr_{report['report_id']}")
+                            with esc2:
+                                edit_a_scorers = st.text_input("Away Scorers", value=report.get('away_scorers', ''), key=f"edit_asc_{report['report_id']}")
+                                edit_a_assists = st.text_input("Away Assists", value=report.get('away_assists', ''), key=f"edit_aa_{report['report_id']}")
+                                edit_a_reds = st.text_input("Away Reds", value=report.get('away_reds', ''), key=f"edit_ar_{report['report_id']}")
+                            
+                            ebtn_col1, ebtn_col2 = st.columns(2)
+                            with ebtn_col1:
+                                if st.button("💾 Save Changes", key=f"save_edit_{report['report_id']}"):
+                                    update_pending_report(
+                                        report['report_id'],
+                                        edit_h_score, edit_a_score,
+                                        edit_h_scorers, edit_a_scorers,
+                                        edit_h_assists, edit_a_assists,
+                                        edit_h_reds, edit_a_reds,
+                                        edit_h_pens, edit_a_pens
+                                    )
+                                    save_data_internal()
+                                    st.session_state[edit_key] = False
+                                    st.success("Report updated!")
+                                    safe_rerun()
+                            
+                            with ebtn_col2:
+                                if st.button("❌ Cancel", key=f"cancel_edit_{report['report_id']}"):
+                                    st.session_state[edit_key] = False
+                                    safe_rerun()
+                            
+                            st.markdown("</div>", unsafe_allow_html=True)
                 
                 with col2:
                     if st.button(f"✅ APPROVE", key=f"approve_{report['report_id']}"):
@@ -2747,6 +3073,18 @@ else:
                             save_data_internal()
                             st.warning("Report rejected!")
                             safe_rerun()
+                
+                with col4:
+                    # Reset match button
+                    match_id = report['match_id']
+                    if match_id in st.session_state.results:
+                        if st.button(f"🔄 RESET", key=f"reset_pending_{report['report_id']}"):
+                            if reset_match_result(match_id):
+                                # Also remove the pending report
+                                reject_match_report(report['report_id'])
+                                save_data_internal()
+                                st.info("Match reset!")
+                                safe_rerun()
         
         st.markdown("---")
     
@@ -2755,13 +3093,24 @@ else:
         # Captain view - simplified interface
         captain_team = st.session_state.logged_in_captain
         
+        # Check if captain's team exists in tournament
+        if captain_team not in st.session_state.teams:
+            st.error(f"⚠️ **Your team '{captain_team}' has been deleted!**")
+            st.info("Please contact the tournament admin.")
+            if st.button("🚪 LOGOUT", key="captain_deleted_logout"):
+                st.session_state.logged_in_captain = None
+                st.session_state.captain_pin_verified = False
+                st.session_state.user_mode = "Admin"
+                save_data_internal()
+                safe_rerun()
         # Check if captain's team is still active
-        if captain_team not in st.session_state.active_teams and captain_team not in [e['team'] for e in st.session_state.eliminated_teams]:
+        elif captain_team not in st.session_state.active_teams and captain_team not in [e['team'] for e in st.session_state.eliminated_teams]:
             st.error(f"⚠️ **Your team '{captain_team}' is not in the tournament!**")
             st.info("Please contact the tournament admin if you believe this is an error.")
             if st.button("🚪 LOGOUT", key="captain_inactive_logout"):
                 st.session_state.logged_in_captain = None
                 st.session_state.captain_pin_verified = False
+                st.session_state.user_mode = "Admin"
                 save_data_internal()
                 safe_rerun()
         else:
@@ -2772,9 +3121,8 @@ else:
             
             # Debug info
             debug_info = debug_captain_view(captain_team)
-            st.info(f"**Debug Info:** Found {len(debug_info['captain_fixtures'])} matches for {captain_team}")
             
-            # If no matches found, show all matches to help diagnose
+            # If no matches found, show diagnostic info
             if not debug_info['captain_fixtures']:
                 st.warning("⚠️ No matches found for your team!")
                 st.markdown("#### All Available Matches:")
@@ -2813,7 +3161,7 @@ else:
                             away_score = st.number_input("Opponent Score", 0, 20, key="manual_away_score")
                         
                         # Create a manual match ID
-                        manual_match_id = f"{home_team}v{away_team}_manual"
+                        manual_match_id = f"{home_team}v{away_team}_manual_{int(datetime.now().timestamp())}"
                         
                         if st.button("📨 SUBMIT MANUAL MATCH REPORT", key="manual_submit"):
                             # Create and submit report
@@ -2864,7 +3212,7 @@ else:
                         
                         # Captain fixing form - only if captain's team is involved
                         expander_title = f"📝 FIX MATCH RESULT"
-                        with st.expander(expander_title, expanded=True):  # Changed to expanded=True
+                        with st.expander(expander_title, expanded=True):
                             st.info("You can fix the result for this match. It will be sent for admin approval.")
                             
                             # Determine if captain's team is home or away
@@ -3017,10 +3365,10 @@ else:
                                     else:
                                         base = mid
                                     
-                                    if "v" in base:
-                                        h, a = base.split('v')
-                                    else:
+                                    if "v" not in base:
                                         continue
+                                    
+                                    h, a = base.split('v')
                                 except:
                                     continue
                                 
@@ -3227,12 +3575,12 @@ else:
                         badge = st.session_state.team_badges.get(team, "🛡️")
                         
                         rows.append({
-    "#": idx + 1,
-    "Club": f"{badge} {team}",
-    "P": s['P'], "W": s['W'], "D": s['D'], "L": s['L'], 
-    "GF": s['GF'], "GA": s['GA'], "GD": s['GD'], 
-    "Pts": s['Pts']
-})
+                            "#": idx + 1,
+                            "Club": f"{badge} {team}",
+                            "P": s['P'], "W": s['W'], "D": s['D'], "L": s['L'], 
+                            "GF": s['GF'], "GA": s['GA'], "GD": s['GD'], 
+                            "Pts": s['Pts']
+                        })
                     
                     if rows:
                         df = pd.DataFrame(rows)
@@ -3325,10 +3673,17 @@ else:
                             # Show current result if exists
                             current_home_score = 0
                             current_away_score = 0
+                            current_home_pens = 0
+                            current_away_pens = 0
+                            current_meta = st.session_state.match_meta.get(mid, {})
+                            
                             if result_status == "approved" and mid in st.session_state.results:
                                 res = st.session_state.results[mid]
                                 current_home_score = res[0]
                                 current_away_score = res[1]
+                                if len(res) > 2:
+                                    current_home_pens = res[2]
+                                    current_away_pens = res[3]
                             
                             s1 = ac1.number_input(f"{h}", 0, 20, value=current_home_score, key=f"s1_{mid}") 
                             s2 = ac2.number_input(f"{a}", 0, 20, value=current_away_score, key=f"s2_{mid}") 
@@ -3339,11 +3694,11 @@ else:
                             
                             if show_pens:
                                 st.caption("Penalties (if tied)")
-                                p1 = ac1.number_input(f"P {h}", 0, 20, key=f"p1_{mid}")
-                                p2 = ac2.number_input(f"P {a}", 0, 20, key=f"p2_{mid}")
+                                p1 = ac1.number_input(f"P {h}", 0, 20, value=current_home_pens, key=f"p1_{mid}")
+                                p2 = ac2.number_input(f"P {a}", 0, 20, value=current_away_pens, key=f"p2_{mid}")
 
                             sc1, sc2 = st.columns(2)
-                            prev = st.session_state.match_meta.get(mid, {})
+                            prev = current_meta
                             gs1_input = sc1.text_input("Scorers (Home)", value=prev.get('h_s',''), key=f"g1_{mid}", placeholder="Messi (2), ...")
                             gs2_input = sc2.text_input("Scorers (Away)", value=prev.get('a_s',''), key=f"g2_{mid}")
                             ha = sc1.text_input("Assists (Home)", value=prev.get('h_a',''), key=f"ah_{mid}")
@@ -3694,5 +4049,4 @@ else:
                     """, unsafe_allow_html=True)
 
 # --- FOOTER ---
-
 st.markdown("""<div class="footer">OFFICIAL DLS TOURNAMENT ENGINE • CAPTAIN'S PORTAL EDITION <br> WRITTEN AND DESIGNED BY <span class="designer-name">OLUWATIMILEYIN IGBINLOLA</span></div>""", unsafe_allow_html=True)
