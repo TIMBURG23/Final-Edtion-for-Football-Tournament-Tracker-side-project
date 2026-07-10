@@ -1,11 +1,9 @@
 # ui/admin.py
 """
-Admin UI scaffold: list and manage captain tokens (reveal, regenerate, export).
+Admin UI: list and manage captain tokens (reveal, regenerate, export).
 """
 import streamlit as st
 import pandas as pd
-import io
-import base64
 
 def render(store):
     st.header("Admin Dashboard")
@@ -34,21 +32,21 @@ def render(store):
         "id": c["id"],
         "team": c.get("team_name") or "—",
         "legacy_pin": c.get("legacy_pin") or "",
+        "pin_claimed": bool(c.get("pin_claimed")),
         "legacy_sha256": bool(c.get("legacy_sha256")),
         "token_created_at": c.get("token_created_at") or ""
     } for c in captains])
 
-    st.dataframe(df[["id","team","legacy_pin","legacy_sha256","token_created_at"]], use_container_width=True)
+    st.dataframe(df[["id","team","legacy_pin","pin_claimed","legacy_sha256","token_created_at"]], use_container_width=True)
 
     st.markdown("#### Actions")
     for c in captains:
         cols = st.columns([3, 2, 1])
         with cols[0]:
             st.markdown(f"**{c.get('team_name') or 'Unknown Team'}**")
-            st.caption(f"Legacy PIN: {c.get('legacy_pin') or '—'} • Token created: {c.get('token_created_at') or '—'}")
+            st.caption(f"Legacy PIN: {c.get('legacy_pin') or '—'} • Token created: {c.get('token_created_at') or '—'} • Claimed: {bool(c.get('pin_claimed'))}")
         with cols[1]:
             if st.button("Reveal token (show once)", key=f"reveal_{c['id']}"):
-                # show token in a code block (visible after click)
                 st.code(c.get("token") or "No token")
         with cols[2]:
             if st.button("Regenerate", key=f"regen_{c['id']}"):
