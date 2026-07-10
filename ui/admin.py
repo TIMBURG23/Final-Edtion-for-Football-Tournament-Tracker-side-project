@@ -1,28 +1,61 @@
 # ui/admin.py
 """
-Admin UI scaffold: minimal features for scaffold review.
+Admin UI scaffold: list and manage captain tokens (reveal, regenerate, export).
 """
 import streamlit as st
+import pandas as pd
+import io
+import base64
 
 def render(store):
     st.header("Admin Dashboard")
-    st.markdown("This is a scaffolded admin dashboard. More features will be added.")
+    st.markdown("Manage teams and captain tokens (reveal / regenerate / export).")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Teams")
-        teams = store.get_all_teams()
-        if teams:
-            for t in teams:
-                st.write(f"- {t['name']} (badge: {t.get('badge', 'N/A')})")
-        else:
-            st.info("No teams yet")
+    # Teams section
+    st.subheader("Teams")
+    teams = store.get_all_teams()
+    if teams:
+        for t in teams:
+            st.write(f"- {t['name']} (badge: {t.get('badge', 'N/A')})")
+    else:
+        st.info("No teams yet")
 
-    with col2:
-        st.subheader("Pending Reports")
-        prs = store.get_pending_reports()
-        if prs:
-            for p in prs:
-                st.write(p)
-        else:
-            st.info("No pending reports")
+    st.markdown("---")
+
+    # Captains / tokens section
+    st.subheader("Captains & Tokens")
+    captains = store.get_all_captains()
+    if not captains:
+        st.info("No captains found.")
+        return
+
+    # Build a dataframe for overview
+    df = pd.DataFrame([{
+        "id": c["id"],
+        "team": c.get("team_name") or "—",
+        "legacy_pin": c.get("legacy_pin") or "",
+        "legacy_sha256": bool(c.get("legacy_sha256")),
+        "token_created_at": c.get("token_created_at") or ""
+    } for c in captains])
+
+    st.dataframe(df[["id","team","legacy_pin","legacy_sha256","token_created_at"]], use_container_width=True)
+
+    st.markdown("#### Actions")
+    for c in captains:
+        cols = st.columns([3, 2, 1])
+        with cols[0]:
+            st.markdown(f"**{c.get('team_name') or 'Unknown Team'}**")
+            st.caption(f"Legacy PIN: {c.get('legacy_pin') or '—'} • Token created: {c.get('token_created_at') or '—'}")
+        with cols[1]:
+            if st.button("Reveal token (show once)", key=f"reveal_{c['id']}"):
+                # show token in a code block (visible after click)
+                st.code(c.get("token") or "No token")
+        with cols[2]:
+            if st.button("Regenerate", key=f"regen_{c['id']}"):
+                new_token = store.regenerate_captain_token(c["id"])
+                st.success("Token regenerated — copy it now!")
+                st.code(new_token)
+
+    # Export CSV
+    csv_data = store.export_captains_csv()
+    st.download_button("📥 Download captains CSV", data=csv_data, file_name="captains.csv", mime="text/csv")
