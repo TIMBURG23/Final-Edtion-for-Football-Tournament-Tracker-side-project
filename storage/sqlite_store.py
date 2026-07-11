@@ -1,6 +1,6 @@
 # storage/sqlite_store.py
 """
-SQLite storage implementation with transactional result writes and full recompute of cumulative stats.
+SQLite store with get_result, audit logging, token management and safe result recompute.
 """
 import sqlite3
 from typing import Optional, List, Dict
@@ -70,6 +70,13 @@ CREATE TABLE IF NOT EXISTS cumulative_stats (
     GA INTEGER DEFAULT 0,
     GD INTEGER DEFAULT 0,
     Pts INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor TEXT,
+    action TEXT,
+    timestamp TEXT
 );
 """
 
@@ -169,7 +176,20 @@ class SQLiteStore:
         r = cur.fetchone()
         return dict(r) if r else None
 
+    # Audit logging
+    def log_admin_action(self, action: str, actor: str = "admin", timestamp: Optional[str] = None):
+        ts = timestamp or datetime.utcnow().isoformat()
+        cur = self.conn.cursor()
+        cur.execute("INSERT INTO audit_logs(actor, action, timestamp) VALUES (?, ?, ?)", (actor, action, ts))
+        self.conn.commit()
+
     # Results & meta
+    def get_result(self, match_id: str) -> Optional[dict]:
+        cur = self.conn.cursor()
+        cur.execute("SELECT * FROM results WHERE match_id = ?", (match_id,))
+        r = cur.fetchone()
+        return dict(r) if r else None
+
     def set_result(self, match_id: str, home_team: str, away_team: str,
                    s1: int, s2: int, p1: int = 0, p2: int = 0,
                    gs1: str = "", gs2: str = "", ha: str = "", aa: str = "", hr: str = "", ar: str = "") -> bool:
@@ -178,9 +198,7 @@ class SQLiteStore:
         """
         try:
             cur = self.conn.cursor()
-            # Start transaction
             cur.execute("BEGIN")
-            # Upsert result into results table
             cur.execute("""
                 INSERT INTO results(match_id, home_team, away_team, home_score, away_score, p_home, p_away, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -194,7 +212,6 @@ class SQLiteStore:
                     updated_at=datetime('now')
             """, (match_id, home_team, away_team, s1, s2, p1, p2))
 
-            # Upsert meta
             cur.execute("""
                 INSERT INTO match_meta(match_id, h_s, a_s, h_a, a_a, h_r, a_r)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -204,28 +221,23 @@ class SQLiteStore:
                     h_r=excluded.h_r, a_r=excluded.a_r
             """, (match_id, gs1, gs2, ha, aa, hr, ar))
 
-            # Recompute cumulative stats from all results
             self._recompute_cumulative_stats(cur)
-
-            # Commit
             self.conn.commit()
+
+            # record admin action (if caller wants to include actor, they can pass through store.log_admin_action separately)
             return True
-        except Exception as e:
-            # On error rollback
+        except Exception:
             self.conn.rollback()
             raise
 
     def _recompute_cumulative_stats(self, cur=None):
-        """Recalculate cumulative_stats table based on all rows in results."""
         own_cursor = False
         if cur is None:
             cur = self.conn.cursor()
             own_cursor = True
 
-        # reset cumulative_stats
         cur.execute("DELETE FROM cumulative_stats")
 
-        # Build stats dict
         stats = {}
         for r in cur.execute("SELECT * FROM results"):
             h = r["home_team"]
@@ -233,12 +245,10 @@ class SQLiteStore:
             s_h = r["home_score"] or 0
             s_a = r["away_score"] or 0
 
-            # ensure team entries
             for team in (h, a):
                 if team not in stats:
                     stats[team] = {"P":0,"W":0,"D":0,"L":0,"GF":0,"GA":0,"GD":0,"Pts":0}
 
-            # update matches played and goals
             stats[h]["P"] += 1
             stats[a]["P"] += 1
             stats[h]["GF"] += s_h
@@ -246,7 +256,6 @@ class SQLiteStore:
             stats[a]["GF"] += s_a
             stats[a]["GA"] += s_h
 
-            # GD will be computed later
             if s_h > s_a:
                 stats[h]["W"] += 1
                 stats[h]["Pts"] += 3
@@ -261,7 +270,6 @@ class SQLiteStore:
                 stats[h]["Pts"] += 1
                 stats[a]["Pts"] += 1
 
-        # compute GD and persist
         for team, s in stats.items():
             s["GD"] = s["GF"] - s["GA"]
             cur.execute("""
@@ -280,5 +288,5 @@ class SQLiteStore:
 
     def get_cumulative_stats(self):
         cur = self.conn.cursor()
-        cur.execute("SELECT * FROM cumulative_stats ORDER BY Pts DESC, GD DESC, GF DESC")
+        cur.execute("SELECT * FROM cumulative_stats ORDER BY Pts DESC, GD DESC, GF DESC, team ASC")
         return [dict(r) for r in cur.fetchall()]
