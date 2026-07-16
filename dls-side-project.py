@@ -4139,4 +4139,156 @@ else:
                     """, unsafe_allow_html=True)
 
 # --- FOOTER ---
-st.markdown("""<div class="footer">OFFICIAL DLS TOURNAMENT ENGINE • CAPTAIN'S PORTAL EDITION <br> WRITTEN AND DESIGNED BY <span class="designer-name">OLUWATIMILEYIN IGBINLOLA</span></div>""", unsafe_allow_html=True)
+st.markdown("""
+<style>
+    /* --- FOOTBALL PITCH FOOTER --- */
+    .footer {
+        text-align: center;
+        padding: 22px 15px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        background: repeating-linear-gradient(
+            45deg,
+            #1a5c1a 0px,
+            #1a5c1a 10px,
+            #2d7a2d 10px,
+            #2d7a2d 20px
+        );
+        border-radius: 20px;
+        border: 4px solid #f5f5f5;
+        box-shadow: 0 0 30px rgba(0, 0, 0, 0.7), inset 0 0 20px rgba(255, 255, 255, 0.2);
+        margin-top: 30px;
+        position: relative;
+        color: white;
+        text-shadow: 2px 2px 0 #00000080;
+        background-blend-mode: overlay;
+    }
+
+    /* White pitch lines effect */
+    .footer::before {
+        content: '';
+        position: absolute;
+        top: 10%;
+        left: 5%;
+        right: 5%;
+        bottom: 10%;
+        border: 3px dashed rgba(255, 255, 255, 0.25);
+        border-radius: 16px;
+        pointer-events: none;
+    }
+
+    /* Centre circle */
+    .footer::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 60px;
+        height: 60px;
+        border: 3px solid rgba(255, 255, 255, 0.15);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+    }
+
+    /* Football emoji animation (bouncing) */
+    .ball {
+        display: inline-block;
+        animation: bounceBall 1.6s ease-in-out infinite;
+        font-size: 1.8rem;
+        filter: drop-shadow(0 8px 6px rgba(0,0,0,0.5));
+    }
+
+    @keyframes bounceBall {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        40% { transform: translateY(-12px) rotate(20deg); }
+        60% { transform: translateY(-6px) rotate(-10deg); }
+        80% { transform: translateY(-2px) rotate(5deg); }
+    }
+
+    /* Trophy glow */
+    .trophy {
+        display: inline-block;
+        animation: glowTrophy 2s ease-in-out infinite alternate;
+        font-size: 1.8rem;
+    }
+
+    @keyframes glowTrophy {
+        0% { filter: drop-shadow(0 0 2px gold); transform: scale(1); }
+        100% { filter: drop-shadow(0 0 20px gold); transform: scale(1.1); }
+    }
+
+    /* Main title - football shirt style */
+    .footer-title {
+        background: linear-gradient(180deg, #ffffff 30%, #e0e0e0 70%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 900;
+        letter-spacing: 2px;
+        text-shadow: 0 0 15px rgba(255,255,255,0.3);
+        font-size: 1.2rem;
+    }
+
+    /* Designer name - golden boot style */
+    .designer-name {
+        background: linear-gradient(90deg, #ffd700, #ffaa00, #ffd700);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 900;
+        font-size: 1.4rem;
+        letter-spacing: 2px;
+        text-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+        animation: shimmer 3s linear infinite;
+        background-size: 200% 100%;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+
+    /* Goal net pattern for background accent (subtle) */
+    .footer .net {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image: 
+            linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+        background-size: 20px 20px;
+        pointer-events: none;
+        border-radius: 16px;
+    }
+
+    /* Tagline - football chant */
+    .chant {
+        color: #ffe484;
+        font-weight: 600;
+        font-size: 0.95rem;
+        margin-top: 6px;
+        letter-spacing: 1px;
+        text-shadow: 0 0 10px #00000080;
+    }
+</style>
+
+<div class="footer">
+    <div class="net"></div>
+    <div style="position: relative; z-index: 2;">
+        <span class="ball">⚽</span>
+        <span class="footer-title">Dream League Soccer</span>
+        <span class="trophy">🏆</span>
+    </div>
+    <div style="position: relative; z-index: 2; margin-top: 8px;">
+        WRITTEN AND DESIGNED BY 
+        <span class="designer-name">OLUWATIMILEYIN IGBINLOLA</span>
+        <span style="font-size:1.5rem; margin-left:6px;">🔥</span>
+    </div>
+    <div class="chant">
+        ⚽ Made with passion • Let the best team win ⚽
+    </div>
+</div>
+""", unsafe_allow_html=True)
