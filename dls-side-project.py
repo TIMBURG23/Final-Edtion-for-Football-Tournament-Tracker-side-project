@@ -1293,7 +1293,7 @@ def debug_captain_view(captain_team):
             continue
         h, a = fix[0], fix[1]
         if captain_team in [h, a]:
-            mid = make_match_id(h, a)"
+            mid = make_match_id(h, a)
             debug_info["captain_fixtures"].append({
                 "match_id": mid,
                 "home": h,
