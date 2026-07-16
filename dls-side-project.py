@@ -1787,7 +1787,7 @@ def advance_knockout_tournament():
         if len(match) < 2:
             continue
         h, a = match[0], match[1]
-        mid = make_match_id(h, a)"
+        mid = make_match_id(h, a)
         if mid not in st.session_state.results:
             current_matches_complete = False
             break
