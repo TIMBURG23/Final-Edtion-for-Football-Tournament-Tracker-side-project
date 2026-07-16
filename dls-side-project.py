@@ -1600,8 +1600,8 @@ def handle_battle_royale_elimination():
             second = standings[1]['Team']
             third = standings[2]['Team']
             
-                       match1_id = make_match_id(second, third)
-                       match2_id = make_match_id(third, second)
+            match1_id = make_match_id(second, third)
+            match2_id = make_match_id(third, second)
             
             res1 = st.session_state.results.get(match1_id, [0, 0])
             res2 = st.session_state.results.get(match2_id, [0, 0])
