@@ -24,192 +24,218 @@ def safe_rerun():
     else:
         st.warning("⚠️ Auto-reload not supported. Please manually refresh your browser.")
 
-# --- CSS STYLING (Deep Burgundy & Golden Sand Theme) ---
+# --- CSS STYLING (Broadcast Feed Theme) ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Teko:wght@300;500;700&family=Rajdhani:wght@500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap');
 
-    /* BASE THEME - DEEP BURGUNDY BACKGROUND */
-    .stApp {
-        background-color: #050101;
-        background-image: radial-gradient(circle at 50% -20%, #5B0E14 0%, #2a0408 50%, #000000 90%);
-        color: #F1E194;
+    :root {
+        --db-bg: #14151A;
+        --db-bg-alt: #1C1E24;
+        --db-panel: #1B1D23;
+        --db-text: #F2F0EA;
+        --db-text-dim: #8B8D94;
+        --db-cyan: #00D4FF;
+        --db-red: #FF3B30;
+        --db-green: #00E676;
+        --db-amber: #FFB300;
+        --db-border: #2A2D35;
     }
 
-    /* TYPOGRAPHY - GOLD */
+    /* BASE THEME - GRAPHITE BROADCAST BACKGROUND */
+    .stApp {
+        background-color: var(--db-bg);
+        background-image: none;
+        color: var(--db-text);
+    }
+
+    /* TYPOGRAPHY */
     h1, h2, h3 { 
-        font-family: 'Teko', sans-serif !important; 
+        font-family: 'Archivo Black', sans-serif !important; 
         text-transform: uppercase; 
         margin: 0 !important; 
-        color: #F1E194 !important;
-        letter-spacing: 1.5px;
-        text-shadow: 0px 2px 4px rgba(0,0,0,0.5);
+        color: var(--db-text) !important;
+        letter-spacing: 0.5px;
+        text-shadow: none;
     }
     
     p, div, label, span, li {
-        font-family: 'Rajdhani', sans-serif;
-        color: #e2d2a3;
+        font-family: 'Inter', sans-serif;
+        color: var(--db-text-dim);
     }
 
     /* TITLES */
     .big-title {
-        font-size: 5rem; font-weight: 700; text-align: center;
-        background: linear-gradient(180deg, #F1E194 0%, #946c1e 100%);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        text-shadow: 0 0 40px rgba(91, 14, 20, 0.8);
+        font-size: 4.5rem; font-weight: 900; text-align: center;
+        color: var(--db-text);
+        letter-spacing: 2px;
+        border-bottom: 3px solid var(--db-cyan);
+        padding-bottom: 12px;
         margin-bottom: 20px;
     }
 
-    /* GLASS PANELS (Burgundy Tint + Gold Border) */
+    /* PANELS - flat, hairline border, cyan spine */
     .glass-panel {
-        background: rgba(40, 5, 8, 0.7); 
-        border: 1px solid #F1E194; 
-        border-radius: 8px; 
+        background: var(--db-panel); 
+        border: 1px solid var(--db-border); 
+        border-left: 3px solid var(--db-cyan);
+        border-radius: 2px; 
         padding: 20px; 
         margin-bottom: 15px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
-        backdrop-filter: blur(5px);
+        box-shadow: none;
+        backdrop-filter: none;
     }
 
     /* INPUTS & SELECTBOXES */
     .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
-        background: rgba(0, 0, 0, 0.8) !important; 
-        color: #F1E194 !important; 
-        border: 1px solid #5B0E14 !important;
-        font-family: 'Rajdhani';
+        background: var(--db-bg-alt) !important; 
+        color: var(--db-text) !important; 
+        border: 1px solid var(--db-border) !important;
+        font-family: 'JetBrains Mono', monospace;
     }
     
     /* RADIO BUTTONS */
     div[role="radiogroup"] label {
-        background: rgba(0, 0, 0, 0.5);
-        border: 1px solid #5B0E14;
+        background: var(--db-bg-alt);
+        border: 1px solid var(--db-border);
         padding: 10px;
-        border-radius: 5px;
+        border-radius: 2px;
     }
 
-    /* BUTTONS (Gold Outline -> Gold Fill) */
+    /* BUTTONS */
     .stButton > button {
         background: transparent; 
-        border: 1px solid #F1E194; 
-        color: #F1E194;
-        font-family: 'Rajdhani', sans-serif; 
-        font-weight: 700; 
+        border: 1px solid var(--db-cyan); 
+        color: var(--db-cyan);
+        font-family: 'Archivo Black', sans-serif; 
+        font-weight: 400; 
         text-transform: uppercase; 
+        letter-spacing: 1px;
         width: 100%;
-        transition: all 0.3s ease;
+        border-radius: 2px;
+        transition: all 0.15s ease;
     }
     .stButton > button:hover { 
-        background: #F1E194; 
-        color: #5B0E14; 
-        border-color: #F1E194;
-        box-shadow: 0 0 20px rgba(241, 225, 148, 0.4);
+        background: var(--db-cyan); 
+        color: var(--db-bg); 
+        border-color: var(--db-cyan);
+        box-shadow: none;
     }
     
     /* SPECIAL BUTTONS */
-    .approve-btn { background: linear-gradient(90deg, #2E7D32 0%, #4CAF50 100%) !important; color: white !important; border: 1px solid #4CAF50 !important; }
-    .reject-btn { background: linear-gradient(90deg, #C62828 0%, #F44336 100%) !important; color: white !important; border: 1px solid #F44336 !important; }
-    .reset-btn { background: linear-gradient(90deg, #FF8F00 0%, #FFA726 100%) !important; color: white !important; border: 1px solid #FFA726 !important; }
-    .captain-btn { background: linear-gradient(90deg, #1565C0 0%, #2196F3 100%) !important; color: white !important; border: 1px solid #2196F3 !important; }
-    .danger-btn { background: linear-gradient(90deg, #B71C1C 0%, #D32F2F 100%) !important; color: white !important; border: 1px solid #FF5252 !important; }
+    .approve-btn { background: var(--db-green) !important; color: #04331A !important; border: 1px solid var(--db-green) !important; }
+    .reject-btn { background: var(--db-red) !important; color: white !important; border: 1px solid var(--db-red) !important; }
+    .reset-btn { background: var(--db-amber) !important; color: #402B00 !important; border: 1px solid var(--db-amber) !important; }
+    .captain-btn { background: var(--db-cyan) !important; color: var(--db-bg) !important; border: 1px solid var(--db-cyan) !important; }
+    .danger-btn { background: var(--db-red) !important; color: white !important; border: 1px solid var(--db-red) !important; }
 
     /* DATAFRAME / TABLE STYLE OVERRIDES */
     div[data-testid="stDataFrame"] {
-        border: 1px solid #5B0E14;
-        background-color: rgba(0,0,0,0.4);
+        border: 1px solid var(--db-border);
+        background-color: var(--db-bg-alt);
     }
 
     /* FOOTER */
     .footer { 
         text-align: center; padding: 20px; 
-        color: #946c1e; 
-        font-family: 'Rajdhani'; 
-        border-top: 1px solid #5B0E14; 
+        color: var(--db-text-dim); 
+        font-family: 'JetBrains Mono', monospace; 
+        font-size: 0.8rem;
+        letter-spacing: 1px;
+        border-top: 1px solid var(--db-border); 
         margin-top: 50px; 
+        background: var(--db-bg-alt);
     }
-    .designer-name { color: #F1E194; font-weight: bold; letter-spacing: 1px; }
+    .designer-name { color: var(--db-cyan); font-weight: bold; letter-spacing: 1px; }
 
     /* SPECIAL STATUS CLASSES */
     .club-badge { font-size: 3rem; margin-bottom: 10px; }
     
     .drop-zone { 
-        background: linear-gradient(90deg, rgba(139, 0, 0, 0.2) 0%, transparent 100%); 
-        border-left: 4px solid #ff4444; 
+        background: linear-gradient(90deg, rgba(255, 59, 48, 0.15) 0%, transparent 100%); 
+        border-left: 4px solid var(--db-red); 
         padding-left: 10px;
     }
     .safe-zone { 
-        background: linear-gradient(90deg, rgba(241, 225, 148, 0.1) 0%, transparent 100%); 
-        border-left: 4px solid #F1E194; 
+        background: linear-gradient(90deg, rgba(0, 212, 255, 0.1) 0%, transparent 100%); 
+        border-left: 4px solid var(--db-cyan); 
         padding-left: 10px;
     }
     .bye-zone { 
-        background: linear-gradient(90deg, rgba(255, 215, 0, 0.2) 0%, transparent 100%); 
-        border-left: 4px solid #FFD700; 
+        background: linear-gradient(90deg, rgba(255, 179, 0, 0.15) 0%, transparent 100%); 
+        border-left: 4px solid var(--db-amber); 
         padding-left: 10px;
     }
     
     .pending-report {
-        background: linear-gradient(90deg, rgba(255, 193, 7, 0.2) 0%, transparent 100%);
-        border: 2px solid #FFC107;
+        background: rgba(255, 179, 0, 0.08);
+        border: 2px solid var(--db-amber);
         animation: pulse 2s infinite;
     }
     @keyframes pulse {
-        0% { border-color: #FFC107; }
-        50% { border-color: #FFA000; }
-        100% { border-color: #FFC107; }
+        0% { border-color: var(--db-amber); }
+        50% { border-color: #FF8F00; }
+        100% { border-color: var(--db-amber); }
     }
 
+    /* PHASE BADGE - broadcast lower-third tag, notched corner */
     .phase-badge { 
         display: inline-block; 
-        padding: 4px 12px; 
-        border-radius: 0px; 
-        font-size: 0.9rem; 
-        font-weight: bold; 
+        padding: 4px 14px 4px 10px; 
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem; 
+        font-weight: 700; 
+        letter-spacing: 1px;
         margin-left: 10px; 
-        border: 1px solid #F1E194; 
-        color: #F1E194; 
-        background: rgba(91, 14, 20, 0.8);
+        color: var(--db-bg); 
+        background: var(--db-cyan);
+        clip-path: polygon(0 0, 100% 0, 92% 100%, 0% 100%);
     }
     
     .sudden-death { 
-        background: linear-gradient(90deg, #000 0%, #5B0E14 50%, #000 100%); 
-        color: white; 
-        border: 2px solid #ff0000; 
+        background: linear-gradient(90deg, rgba(255, 59, 48, 0.12) 0%, transparent 60%); 
+        color: var(--db-text); 
+        border: 2px solid var(--db-red); 
     }
-    .golden-boot { color: #F1E194; font-weight: bold; font-size: 1.5rem; text-shadow: 0 0 10px #F1E194; }
+    .golden-boot { color: var(--db-amber); font-weight: 700; font-size: 1.5rem; text-shadow: none; }
     
     /* TOAST */
     div[data-baseweb="toast"] {
-        background-color: #5B0E14 !important;
-        color: #F1E194 !important;
-        border: 1px solid #F1E194 !important;
+        background-color: var(--db-panel) !important;
+        color: var(--db-text) !important;
+        border: 1px solid var(--db-cyan) !important;
     }
     
     /* METRICS */
     div[data-testid="stMetricValue"] {
-        color: #F1E194 !important;
-        font-family: 'Teko' !important;
+        color: var(--db-text) !important;
+        font-family: 'JetBrains Mono' !important;
     }
     div[data-testid="stMetricLabel"] {
-        color: #946c1e !important;
+        color: var(--db-text-dim) !important;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 1px;
     }
     
     /* BRACKET STYLES */
     .bracket-match {
-        background: rgba(0, 0, 0, 0.6);
-        border: 1px solid #5B0E14;
+        background: var(--db-bg-alt);
+        border: 1px solid var(--db-border);
+        border-left: 3px solid var(--db-cyan);
         padding: 10px;
         margin: 5px 0;
-        border-radius: 4px;
+        border-radius: 2px;
     }
     .bracket-winner {
-        background: linear-gradient(90deg, rgba(241, 225, 148, 0.2) 0%, transparent 100%);
-        border-left: 3px solid #F1E194;
+        background: rgba(0, 212, 255, 0.08);
+        border-left: 3px solid var(--db-cyan);
     }
     
     /* CAPTAIN PORTAL */
     .captain-portal {
-        background: linear-gradient(135deg, rgba(21, 101, 192, 0.2) 0%, rgba(33, 150, 243, 0.1) 100%);
-        border: 2px solid #2196F3;
+        background: rgba(0, 212, 255, 0.06);
+        border: 2px solid var(--db-cyan);
     }
     
     /* NOTIFICATION BADGE */
@@ -217,7 +243,7 @@ st.markdown("""
         position: absolute;
         top: -5px;
         right: -5px;
-        background: #F44336;
+        background: var(--db-red);
         color: white;
         border-radius: 50%;
         width: 20px;
@@ -226,35 +252,38 @@ st.markdown("""
         display: flex;
         align-items: center;
         justify-content: center;
-        font-family: 'Rajdhani';
+        font-family: 'JetBrains Mono';
         font-weight: bold;
     }
     
     /* PROGRESS BAR */
     .progress-container {
         width: 100%;
-        background-color: rgba(0, 0, 0, 0.3);
-        border-radius: 10px;
+        background-color: var(--db-bg-alt);
+        border-radius: 2px;
         margin: 10px 0;
         height: 20px;
+        border: 1px solid var(--db-border);
     }
     .progress-bar {
         height: 100%;
-        background: linear-gradient(90deg, #F1E194 0%, #946c1e 100%);
-        border-radius: 10px;
+        background: var(--db-cyan);
+        border-radius: 0px;
         text-align: center;
         line-height: 20px;
-        color: #000;
+        color: var(--db-bg);
         font-weight: bold;
-        font-family: 'Rajdhani';
+        font-family: 'JetBrains Mono';
     }
     
-    /* NEWS FEED */
+    /* NEWS FEED - broadcast ticker line */
     .news-item {
-        padding: 10px;
+        padding: 10px 14px;
         margin: 5px 0;
-        border-left: 3px solid #F1E194;
-        background: rgba(0, 0, 0, 0.2);
+        border-left: 3px solid var(--db-cyan);
+        background: var(--db-bg-alt);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.9rem;
     }
     .news-item:last-child {
         border-bottom: none;
@@ -262,74 +291,80 @@ st.markdown("""
     
     /* FILE UPLOAD */
     .uploadedFile {
-        background: rgba(0, 0, 0, 0.5) !important;
-        border: 1px solid #5B0E14 !important;
+        background: var(--db-bg-alt) !important;
+        border: 1px solid var(--db-border) !important;
     }
     
-    /* PAST CHAMPIONS */
+    /* PAST CHAMPIONS - amber top rule (broadcast trophy tag) */
     .champion-card {
-        background: linear-gradient(135deg, rgba(241, 225, 148, 0.1) 0%, rgba(148, 108, 30, 0.2) 100%);
-        border: 2px solid #F1E194;
+        background: var(--db-panel);
+        border: 1px solid var(--db-border);
+        border-top: 3px solid var(--db-amber);
         padding: 20px;
-        border-radius: 10px;
+        border-radius: 2px;
         margin: 10px 0;
         text-align: center;
     }
     .champion-year {
-        font-size: 0.9rem;
-        color: #946c1e;
-        font-weight: bold;
+        font-size: 0.85rem;
+        color: var(--db-text-dim);
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 700;
     }
     .champion-name {
         font-size: 1.5rem;
-        color: #F1E194;
-        font-weight: bold;
+        color: var(--db-text);
+        font-family: 'Archivo Black', sans-serif;
+        font-weight: 400;
         margin: 5px 0;
+        text-transform: uppercase;
     }
     .champion-format {
         font-size: 0.8rem;
-        color: #e2d2a3;
+        color: var(--db-cyan);
+        font-family: 'JetBrains Mono', monospace;
     }
     
     /* CAPTAIN CREDENTIALS */
     .credentials-box {
-        background: rgba(0, 0, 0, 0.8);
-        border: 2px solid #2196F3;
+        background: var(--db-bg-alt);
+        border: 2px solid var(--db-cyan);
         padding: 15px;
-        border-radius: 8px;
+        border-radius: 2px;
         margin: 10px 0;
     }
     
     /* PIN DISPLAY */
     .pin-display {
-        font-family: 'Courier New', monospace;
+        font-family: 'JetBrains Mono', monospace;
         font-weight: bold;
-        color: #F1E194;
-        background: rgba(0, 0, 0, 0.5);
+        color: var(--db-cyan);
+        background: var(--db-bg);
         padding: 5px 10px;
-        border-radius: 4px;
-        border: 1px solid #5B0E14;
+        border-radius: 2px;
+        border: 1px solid var(--db-border);
+        letter-spacing: 2px;
     }
     
     /* FIXED RESULT BUTTON */
     .fixed-result-btn {
-        background: linear-gradient(90deg, #FF9800 0%, #FFB74D 100%) !important;
-        color: white !important;
-        border: 1px solid #FF9800 !important;
+        background: var(--db-amber) !important;
+        color: #402B00 !important;
+        border: 1px solid var(--db-amber) !important;
         font-size: 0.8rem !important;
         padding: 5px 10px !important;
     }
     
     /* DISABLED STATE */
     .disabled {
-        opacity: 0.6;
+        opacity: 0.5;
         cursor: not-allowed;
     }
     
     /* EDIT MODE HIGHLIGHT */
     .edit-mode {
-        background: linear-gradient(90deg, rgba(255, 152, 0, 0.2) 0%, transparent 100%);
-        border: 2px solid #FF9800;
+        background: rgba(255, 179, 0, 0.08);
+        border: 2px solid var(--db-amber);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -980,6 +1015,88 @@ def reject_match_report(report_id):
     
     return True
 
+# --- STAT-REVERSAL HELPER (fixes double-counting on reset / re-entry) ---
+
+def reverse_match_stats(mid, h, a):
+    """Reverses all team + player stats a previously recorded match contributed.
+    Call this BEFORE deleting a match's history entry, whether you're
+    correcting a result or resetting it outright."""
+    if mid not in st.session_state.match_history:
+        return
+
+    old_res = st.session_state.match_history[mid]
+    old_s1, old_s2 = old_res['score']
+
+    old_meta = st.session_state.match_meta.get(mid, {})
+    old_gs1 = old_meta.get('h_s', '')
+    old_gs2 = old_meta.get('a_s', '')
+    old_ha = old_meta.get('h_a', '')
+    old_aa = old_meta.get('a_a', '')
+    old_hr = old_meta.get('h_r', '')
+    old_ar = old_meta.get('a_r', '')
+
+    if h in st.session_state.cumulative_stats:
+        stats = st.session_state.cumulative_stats[h]
+        stats['P'] -= 1
+        stats['GF'] -= old_s1
+        stats['GA'] -= old_s2
+        stats['GD'] -= (old_s1 - old_s2)
+        if old_s1 > old_s2:
+            stats['W'] -= 1
+            stats['Pts'] -= 3
+        elif old_s2 > old_s1:
+            stats['L'] -= 1
+        else:
+            stats['D'] -= 1
+            stats['Pts'] -= 1
+
+    if a in st.session_state.cumulative_stats:
+        stats = st.session_state.cumulative_stats[a]
+        stats['P'] -= 1
+        stats['GF'] -= old_s2
+        stats['GA'] -= old_s1
+        stats['GD'] -= (old_s2 - old_s1)
+        if old_s2 > old_s1:
+            stats['W'] -= 1
+            stats['Pts'] -= 3
+        elif old_s1 > old_s2:
+            stats['L'] -= 1
+        else:
+            stats['D'] -= 1
+            stats['Pts'] -= 1
+
+    def remove_player_stats(raw_str, team, stat_type):
+        if not raw_str:
+            return
+        for raw_player in raw_str.split(','):
+            raw_player = raw_player.strip()
+            if not raw_player:
+                continue
+            count = 1
+            name = raw_player
+            m_br = re.search(r'^(.*?)\s*\((\d+)\)$', raw_player)
+            if m_br:
+                name, count = m_br.group(1).strip(), int(m_br.group(2))
+            m_x = re.search(r'^(.*?)\s*[xX](\d+)$', raw_player)
+            if m_x:
+                name, count = m_x.group(1).strip(), int(m_x.group(2))
+            name = name.strip().title()
+            if not name:
+                continue
+            player_id = f"{name}|{team}"
+            if player_id in st.session_state.cumulative_player_stats:
+                st.session_state.cumulative_player_stats[player_id][stat_type] -= count
+                ps = st.session_state.cumulative_player_stats[player_id]
+                if ps['G'] <= 0 and ps['A'] <= 0 and ps['R'] <= 0:
+                    del st.session_state.cumulative_player_stats[player_id]
+
+    remove_player_stats(old_gs1, h, 'G')
+    remove_player_stats(old_gs2, a, 'G')
+    remove_player_stats(old_ha, h, 'A')
+    remove_player_stats(old_aa, a, 'A')
+    remove_player_stats(old_hr, h, 'R')
+    remove_player_stats(old_ar, a, 'R')
+
 def reset_match_result(match_id):
     """Reset a match result (admin only)"""
     if match_id in st.session_state.results:
@@ -996,6 +1113,8 @@ def reset_match_result(match_id):
             h, a = base.split('v')
         except Exception:
             return False
+        
+        # Reverse the stats this match previously contributed BEFORE deleting it
         reverse_match_stats(match_id, h, a)
 
         # Remove from results
@@ -1106,6 +1225,9 @@ def get_match_result_status(match_id):
         return "completed"
     else:
         return "not_played"
+
+# --- STABLE MATCH-ID HELPERS (fixes ID collisions when fixtures reorder) ---
+
 def get_round_token():
     """A token that stays the same for all matches in the current round/stage,
     regardless of what position they land at in the fixtures list."""
@@ -1874,173 +1996,15 @@ def advance_knockout_tournament():
     st.session_state.news.insert(0, f"⚽ Advancing to {next_round}!")
     save_data_internal()
     safe_rerun()
-def reverse_match_stats(mid, h, a):
-    """Reverses all team + player stats a previously recorded match contributed.
-    Call this BEFORE deleting a match's history entry, whether you're
-    correcting a result or resetting it outright."""
-    if mid not in st.session_state.match_history:
-        return
 
-    old_res = st.session_state.match_history[mid]
-    old_s1, old_s2 = old_res['score']
-
-    old_meta = st.session_state.match_meta.get(mid, {})
-    old_gs1 = old_meta.get('h_s', '')
-    old_gs2 = old_meta.get('a_s', '')
-    old_ha = old_meta.get('h_a', '')
-    old_aa = old_meta.get('a_a', '')
-    old_hr = old_meta.get('h_r', '')
-    old_ar = old_meta.get('a_r', '')
-
-    if h in st.session_state.cumulative_stats:
-        stats = st.session_state.cumulative_stats[h]
-        stats['P'] -= 1
-        stats['GF'] -= old_s1
-        stats['GA'] -= old_s2
-        stats['GD'] -= (old_s1 - old_s2)
-        if old_s1 > old_s2:
-            stats['W'] -= 1
-            stats['Pts'] -= 3
-        elif old_s2 > old_s1:
-            stats['L'] -= 1
-        else:
-            stats['D'] -= 1
-            stats['Pts'] -= 1
-
-    if a in st.session_state.cumulative_stats:
-        stats = st.session_state.cumulative_stats[a]
-        stats['P'] -= 1
-        stats['GF'] -= old_s2
-        stats['GA'] -= old_s1
-        stats['GD'] -= (old_s2 - old_s1)
-        if old_s2 > old_s1:
-            stats['W'] -= 1
-            stats['Pts'] -= 3
-        elif old_s1 > old_s2:
-            stats['L'] -= 1
-        else:
-            stats['D'] -= 1
-            stats['Pts'] -= 1
-
-    def remove_player_stats(raw_str, team, stat_type):
-        if not raw_str:
-            return
-        for raw_player in raw_str.split(','):
-            raw_player = raw_player.strip()
-            if not raw_player:
-                continue
-            count = 1
-            name = raw_player
-            m_br = re.search(r'^(.*?)\s*\((\d+)\)$', raw_player)
-            if m_br:
-                name, count = m_br.group(1).strip(), int(m_br.group(2))
-            m_x = re.search(r'^(.*?)\s*[xX](\d+)$', raw_player)
-            if m_x:
-                name, count = m_x.group(1).strip(), int(m_x.group(2))
-            name = name.strip().title()
-            if not name:
-                continue
-            player_id = f"{name}|{team}"
-            if player_id in st.session_state.cumulative_player_stats:
-                st.session_state.cumulative_player_stats[player_id][stat_type] -= count
-                ps = st.session_state.cumulative_player_stats[player_id]
-                if ps['G'] <= 0 and ps['A'] <= 0 and ps['R'] <= 0:
-                    del st.session_state.cumulative_player_stats[player_id]
-
-    remove_player_stats(old_gs1, h, 'G')
-    remove_player_stats(old_gs2, a, 'G')
-    remove_player_stats(old_ha, h, 'A')
-    remove_player_stats(old_aa, a, 'A')
-    remove_player_stats(old_hr, h, 'R')
-    remove_player_stats(old_ar, a, 'R')
 def update_match_result_safely(mid, h, a, s1, s2, p1=0, p2=0, gs1="", gs2="", ha="", aa="", hr="", ar=""):
     """Safely update match result without duplicate points - FIXED VERSION"""
     # Check if this match was already processed
     was_processed = mid in st.session_state.match_history
     
     if was_processed:
+        # Reverse the previously-applied stats using the shared helper
         reverse_match_stats(mid, h, a)
-        
-        # Store old player strings to remove them
-        old_meta = st.session_state.match_meta.get(mid, {})
-        old_gs1 = old_meta.get('h_s', '')
-        old_gs2 = old_meta.get('a_s', '')
-        old_ha = old_meta.get('h_a', '')
-        old_aa = old_meta.get('a_a', '')
-        old_hr = old_meta.get('h_r', '')
-        old_ar = old_meta.get('a_r', '')
-        
-        # Remove old team stats
-        if h in st.session_state.cumulative_stats:
-            stats = st.session_state.cumulative_stats[h]
-            stats['P'] -= 1
-            stats['GF'] -= old_s1
-            stats['GA'] -= old_s2
-            stats['GD'] -= (old_s1 - old_s2)
-            
-            if old_s1 > old_s2:
-                stats['W'] -= 1
-                stats['Pts'] -= 3
-            elif old_s2 > old_s1:
-                stats['L'] -= 1
-            else:
-                stats['D'] -= 1
-                stats['Pts'] -= 1
-        
-        if a in st.session_state.cumulative_stats:
-            stats = st.session_state.cumulative_stats[a]
-            stats['P'] -= 1
-            stats['GF'] -= old_s2
-            stats['GA'] -= old_s1
-            stats['GD'] -= (old_s2 - old_s1)
-            
-            if old_s2 > old_s1:
-                stats['W'] -= 1
-                stats['Pts'] -= 3
-            elif old_s1 > old_s2:
-                stats['L'] -= 1
-            else:
-                stats['D'] -= 1
-                stats['Pts'] -= 1
-        
-        # Remove old player stats
-        def remove_player_stats(raw_str, team, stat_type):
-            if not raw_str: return
-            raw_parts = raw_str.split(',')
-            for raw_player in raw_parts:
-                raw_player = raw_player.strip()
-                if not raw_player: continue
-                
-                count = 1
-                name = raw_player
-                
-                m_br = re.search(r'^(.*?)\s*\((\d+)\)$', raw_player)
-                if m_br:
-                    name = m_br.group(1).strip()
-                    count = int(m_br.group(2))
-                m_x = re.search(r'^(.*?)\s*[xX](\d+)$', raw_player)
-                if m_x:
-                    name = m_x.group(1).strip()
-                    count = int(m_x.group(2))
-                
-                name = name.strip().title()
-                if not name: continue
-                
-                player_id = f"{name}|{team}"
-                
-                if player_id in st.session_state.cumulative_player_stats:
-                    st.session_state.cumulative_player_stats[player_id][stat_type] -= count
-                    # Remove player if all stats are zero or negative
-                    player_stats = st.session_state.cumulative_player_stats[player_id]
-                    if player_stats['G'] <= 0 and player_stats['A'] <= 0 and player_stats['R'] <= 0:
-                        del st.session_state.cumulative_player_stats[player_id]
-        
-        remove_player_stats(old_gs1, h, 'G')
-        remove_player_stats(old_gs2, a, 'G')
-        remove_player_stats(old_ha, h, 'A')
-        remove_player_stats(old_aa, a, 'A')
-        remove_player_stats(old_hr, h, 'R')
-        remove_player_stats(old_ar, a, 'R')
     
     # Initialize cumulative stats if not exists
     if h not in st.session_state.cumulative_stats:
@@ -4139,156 +4103,4 @@ else:
                     """, unsafe_allow_html=True)
 
 # --- FOOTER ---
-st.markdown("""
-<style>
-    /* --- FOOTBALL PITCH FOOTER --- */
-    .footer {
-        text-align: center;
-        padding: 22px 15px;
-        font-size: 1.1rem;
-        font-weight: 700;
-        background: repeating-linear-gradient(
-            45deg,
-            #1a5c1a 0px,
-            #1a5c1a 10px,
-            #2d7a2d 10px,
-            #2d7a2d 20px
-        );
-        border-radius: 20px;
-        border: 4px solid #f5f5f5;
-        box-shadow: 0 0 30px rgba(0, 0, 0, 0.7), inset 0 0 20px rgba(255, 255, 255, 0.2);
-        margin-top: 30px;
-        position: relative;
-        color: white;
-        text-shadow: 2px 2px 0 #00000080;
-        background-blend-mode: overlay;
-    }
-
-    /* White pitch lines effect */
-    .footer::before {
-        content: '';
-        position: absolute;
-        top: 10%;
-        left: 5%;
-        right: 5%;
-        bottom: 10%;
-        border: 3px dashed rgba(255, 255, 255, 0.25);
-        border-radius: 16px;
-        pointer-events: none;
-    }
-
-    /* Centre circle */
-    .footer::after {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 60px;
-        height: 60px;
-        border: 3px solid rgba(255, 255, 255, 0.15);
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-        pointer-events: none;
-    }
-
-    /* Football emoji animation (bouncing) */
-    .ball {
-        display: inline-block;
-        animation: bounceBall 1.6s ease-in-out infinite;
-        font-size: 1.8rem;
-        filter: drop-shadow(0 8px 6px rgba(0,0,0,0.5));
-    }
-
-    @keyframes bounceBall {
-        0%, 100% { transform: translateY(0) rotate(0deg); }
-        40% { transform: translateY(-12px) rotate(20deg); }
-        60% { transform: translateY(-6px) rotate(-10deg); }
-        80% { transform: translateY(-2px) rotate(5deg); }
-    }
-
-    /* Trophy glow */
-    .trophy {
-        display: inline-block;
-        animation: glowTrophy 2s ease-in-out infinite alternate;
-        font-size: 1.8rem;
-    }
-
-    @keyframes glowTrophy {
-        0% { filter: drop-shadow(0 0 2px gold); transform: scale(1); }
-        100% { filter: drop-shadow(0 0 20px gold); transform: scale(1.1); }
-    }
-
-    /* Main title - football shirt style */
-    .footer-title {
-        background: linear-gradient(180deg, #ffffff 30%, #e0e0e0 70%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        font-weight: 900;
-        letter-spacing: 2px;
-        text-shadow: 0 0 15px rgba(255,255,255,0.3);
-        font-size: 1.2rem;
-    }
-
-    /* Designer name - golden boot style */
-    .designer-name {
-        background: linear-gradient(90deg, #ffd700, #ffaa00, #ffd700);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        font-weight: 900;
-        font-size: 1.4rem;
-        letter-spacing: 2px;
-        text-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
-        animation: shimmer 3s linear infinite;
-        background-size: 200% 100%;
-    }
-
-    @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-    }
-
-    /* Goal net pattern for background accent (subtle) */
-    .footer .net {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-image: 
-            linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-        background-size: 20px 20px;
-        pointer-events: none;
-        border-radius: 16px;
-    }
-
-    /* Tagline - football chant */
-    .chant {
-        color: #ffe484;
-        font-weight: 600;
-        font-size: 0.95rem;
-        margin-top: 6px;
-        letter-spacing: 1px;
-        text-shadow: 0 0 10px #00000080;
-    }
-</style>
-
-<div class="footer">
-    <div class="net"></div>
-    <div style="position: relative; z-index: 2;">
-        <span class="ball">⚽</span>
-        <span class="footer-title">Dream League Soccer</span>
-        <span class="trophy">🏆</span>
-    </div>
-    <div style="position: relative; z-index: 2; margin-top: 8px;">
-        WRITTEN AND DESIGNED BY 
-        <span class="designer-name">OLUWATIMILEYIN IGBINLOLA</span>
-        <span style="font-size:1.5rem; margin-left:6px;">🔥</span>
-    </div>
-    <div class="chant">
-        ⚽ Made with passion • Let the best team win ⚽
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("""<div class="footer">OFFICIAL DLS TOURNAMENT ENGINE • CAPTAIN'S PORTAL EDITION <br> WRITTEN AND DESIGNED BY <span class="designer-name">OLUWATIMILEYIN IGBINLOLA</span></div>""", unsafe_allow_html=True)
