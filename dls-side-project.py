@@ -1312,7 +1312,7 @@ def find_matches_for_team(team_name):
             continue
         h, a = fix[0], fix[1]
         if team_name in [h, a]:
-            mid = make_match_id(h, a)"
+            mid = make_match_id(h, a)
             matches.append({
                 "index": i,
                 "home": h,
