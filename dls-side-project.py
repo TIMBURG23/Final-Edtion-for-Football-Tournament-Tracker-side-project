@@ -1802,7 +1802,7 @@ def advance_knockout_tournament():
         if len(match) < 2:
             continue
         h, a = match[0], match[1]
-        mid = make_match_id(h, a)"
+        mid = make_match_id(h, a)
         res = st.session_state.results[mid]
         
         if len(res) >= 2:
