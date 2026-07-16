@@ -3703,7 +3703,7 @@ else:
                 if filter_team != "All" and filter_team not in [h, a]: 
                     continue
                 
-               mid = make_match_id(h, a)
+                mid = make_match_id(h, a)
                 result_status = get_match_result_status(mid)
                 
                 is_sudden_death = (
