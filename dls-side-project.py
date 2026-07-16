@@ -3532,7 +3532,7 @@ else:
                             continue
                         
                         h, a = match[0], match[1]
-                        mid = make_match_id(h, a)"
+                        mid = make_match_id(h, a)
                         result_status = get_match_result_status(mid)
                         
                         with col1 if i % 2 == 0 else col2:
