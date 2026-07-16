@@ -996,7 +996,8 @@ def reset_match_result(match_id):
             h, a = base.split('v')
         except Exception:
             return False
-        
+        reverse_match_stats(match_id, h, a)
+
         # Remove from results
         del st.session_state.results[match_id]
         
@@ -1105,6 +1106,20 @@ def get_match_result_status(match_id):
         return "completed"
     else:
         return "not_played"
+def get_round_token():
+    """A token that stays the same for all matches in the current round/stage,
+    regardless of what position they land at in the fixtures list."""
+    if "Survival" in st.session_state.format:
+        return f"r{st.session_state.round_number}"
+    elif "World Cup" in st.session_state.format:
+        return st.session_state.world_cup_stage.replace(" ", "")
+    elif "Knockout" in st.session_state.format:
+        return f"k{st.session_state.knockout_round}"
+    else:
+        return "league"
+
+def make_match_id(h, a):
+    return f"{h}v{a}_{get_round_token()}"
 
 # --- NEW: ADMIN CAPTAIN CONTROLS ---
 
@@ -1278,7 +1293,7 @@ def debug_captain_view(captain_team):
             continue
         h, a = fix[0], fix[1]
         if captain_team in [h, a]:
-            mid = f"{h}v{a}_{i}"
+            mid = make_match_id(h, a)"
             debug_info["captain_fixtures"].append({
                 "match_id": mid,
                 "home": h,
@@ -1297,7 +1312,7 @@ def find_matches_for_team(team_name):
             continue
         h, a = fix[0], fix[1]
         if team_name in [h, a]:
-            mid = f"{h}v{a}_{i}"
+            mid = make_match_id(h, a)"
             matches.append({
                 "index": i,
                 "home": h,
@@ -1585,8 +1600,8 @@ def handle_battle_royale_elimination():
             second = standings[1]['Team']
             third = standings[2]['Team']
             
-            match1_id = f"{second}v{third}_0"
-            match2_id = f"{third}v{second}_1"
+           match1_id = make_match_id(second, third)
+            match2_id = make_match_id(third, second)
             
             res1 = st.session_state.results.get(match1_id, [0, 0])
             res2 = st.session_state.results.get(match2_id, [0, 0])
@@ -1772,7 +1787,7 @@ def advance_knockout_tournament():
         if len(match) < 2:
             continue
         h, a = match[0], match[1]
-        mid = f"{h}v{a}_{i}"
+        mid = make_match_id(h, a)"
         if mid not in st.session_state.results:
             current_matches_complete = False
             break
@@ -1787,7 +1802,7 @@ def advance_knockout_tournament():
         if len(match) < 2:
             continue
         h, a = match[0], match[1]
-        mid = f"{h}v{a}_{i}"
+        mid = make_match_id(h, a)"
         res = st.session_state.results[mid]
         
         if len(res) >= 2:
@@ -1859,17 +1874,92 @@ def advance_knockout_tournament():
     st.session_state.news.insert(0, f"⚽ Advancing to {next_round}!")
     save_data_internal()
     safe_rerun()
+def reverse_match_stats(mid, h, a):
+    """Reverses all team + player stats a previously recorded match contributed.
+    Call this BEFORE deleting a match's history entry, whether you're
+    correcting a result or resetting it outright."""
+    if mid not in st.session_state.match_history:
+        return
 
+    old_res = st.session_state.match_history[mid]
+    old_s1, old_s2 = old_res['score']
+
+    old_meta = st.session_state.match_meta.get(mid, {})
+    old_gs1 = old_meta.get('h_s', '')
+    old_gs2 = old_meta.get('a_s', '')
+    old_ha = old_meta.get('h_a', '')
+    old_aa = old_meta.get('a_a', '')
+    old_hr = old_meta.get('h_r', '')
+    old_ar = old_meta.get('a_r', '')
+
+    if h in st.session_state.cumulative_stats:
+        stats = st.session_state.cumulative_stats[h]
+        stats['P'] -= 1
+        stats['GF'] -= old_s1
+        stats['GA'] -= old_s2
+        stats['GD'] -= (old_s1 - old_s2)
+        if old_s1 > old_s2:
+            stats['W'] -= 1
+            stats['Pts'] -= 3
+        elif old_s2 > old_s1:
+            stats['L'] -= 1
+        else:
+            stats['D'] -= 1
+            stats['Pts'] -= 1
+
+    if a in st.session_state.cumulative_stats:
+        stats = st.session_state.cumulative_stats[a]
+        stats['P'] -= 1
+        stats['GF'] -= old_s2
+        stats['GA'] -= old_s1
+        stats['GD'] -= (old_s2 - old_s1)
+        if old_s2 > old_s1:
+            stats['W'] -= 1
+            stats['Pts'] -= 3
+        elif old_s1 > old_s2:
+            stats['L'] -= 1
+        else:
+            stats['D'] -= 1
+            stats['Pts'] -= 1
+
+    def remove_player_stats(raw_str, team, stat_type):
+        if not raw_str:
+            return
+        for raw_player in raw_str.split(','):
+            raw_player = raw_player.strip()
+            if not raw_player:
+                continue
+            count = 1
+            name = raw_player
+            m_br = re.search(r'^(.*?)\s*\((\d+)\)$', raw_player)
+            if m_br:
+                name, count = m_br.group(1).strip(), int(m_br.group(2))
+            m_x = re.search(r'^(.*?)\s*[xX](\d+)$', raw_player)
+            if m_x:
+                name, count = m_x.group(1).strip(), int(m_x.group(2))
+            name = name.strip().title()
+            if not name:
+                continue
+            player_id = f"{name}|{team}"
+            if player_id in st.session_state.cumulative_player_stats:
+                st.session_state.cumulative_player_stats[player_id][stat_type] -= count
+                ps = st.session_state.cumulative_player_stats[player_id]
+                if ps['G'] <= 0 and ps['A'] <= 0 and ps['R'] <= 0:
+                    del st.session_state.cumulative_player_stats[player_id]
+
+    remove_player_stats(old_gs1, h, 'G')
+    remove_player_stats(old_gs2, a, 'G')
+    remove_player_stats(old_ha, h, 'A')
+    remove_player_stats(old_aa, a, 'A')
+    remove_player_stats(old_hr, h, 'R')
+    remove_player_stats(old_ar, a, 'R')
 def update_match_result_safely(mid, h, a, s1, s2, p1=0, p2=0, gs1="", gs2="", ha="", aa="", hr="", ar=""):
     """Safely update match result without duplicate points - FIXED VERSION"""
     # Check if this match was already processed
     was_processed = mid in st.session_state.match_history
     
     if was_processed:
-        # Remove old stats before adding new ones
-        old_res = st.session_state.match_history[mid]
-        old_s1, old_s2 = old_res['score']
-        old_p1, old_p2 = old_res.get('pens', (0, 0))
+        reverse_match_stats(mid, h, a)
         
         # Store old player strings to remove them
         old_meta = st.session_state.match_meta.get(mid, {})
@@ -3442,7 +3532,7 @@ else:
                             continue
                         
                         h, a = match[0], match[1]
-                        mid = f"{h}v{a}_{i}"
+                        mid = make_match_id(h, a)"
                         result_status = get_match_result_status(mid)
                         
                         with col1 if i % 2 == 0 else col2:
@@ -3613,7 +3703,7 @@ else:
                 if filter_team != "All" and filter_team not in [h, a]: 
                     continue
                 
-                mid = f"{h}v{a}_{i}" 
+               mid = make_match_id(h, a)" 
                 result_status = get_match_result_status(mid)
                 
                 is_sudden_death = (
