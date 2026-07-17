@@ -811,15 +811,13 @@ def add_team_with_captain(team_name):
         
         # Show credentials to user
         credentials_msg = f"""
-        **Team Registered Successfully!**
+        **{team_name} is registered.**
         
-        **Team:** {team_name}
+        **Club:** {team_name}
         **Captain PIN:** `{pin}`
-        **Team Password:** `{password}`
+        **Club password:** `{password}`
         
-        ⚠️ **SAVE THESE CREDENTIALS NOW!**
-        - You'll need the PIN to log in as captain
-        - Share the password with your team members
+        Save these now — you'll need the PIN to check in as captain, and the password is for sharing with the rest of the club.
         """
         
         return credentials_msg, pin, password
@@ -2161,41 +2159,54 @@ if 'admin_unlock' not in st.session_state:
 
 init_defaults()
 
-# --- 🏆 HEADER ---
-st.markdown('<div class="big-title">DLS ULTRA</div>', unsafe_allow_html=True)
+# --- 🏆 HEADER — broadcast rundown bar ---
+if st.session_state.champion:
+    status_line = f"FULL TIME · {st.session_state.champion} WINS IT"
+elif "Survival" in st.session_state.format:
+    status_line = f"ROUND {st.session_state.round_number} · {st.session_state.battle_phase.upper()} · {len(st.session_state.active_teams)} CLUBS LEFT"
+else:
+    status_line = f"{st.session_state.current_round.upper()} · {len(st.session_state.active_teams)} CLUBS"
 
-# Special Battle Royale header
-if "Survival" in st.session_state.format:
+st.markdown(f"""
+<div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:10px; border-bottom:3px solid var(--db-cyan); padding-bottom:12px; margin-bottom:20px;">
+    <h1 style="font-size:3rem; letter-spacing:2px;">DLS Ultra</h1>
+    <div style="font-family:'JetBrains Mono', monospace; font-size:0.85rem; letter-spacing:2px; color:var(--db-cyan); padding-bottom:10px;">{status_line}</div>
+</div>
+""", unsafe_allow_html=True)
+
+# Battle Royale on-air strip
+if "Survival" in st.session_state.format and not st.session_state.champion:
     st.markdown(f"""
-    <div style="text-align: center; margin: 20px 0; padding: 15px; background: linear-gradient(90deg, #000 0%, #5B0E14 50%, #000 100%); border-radius: 10px; border: 1px solid #F1E194;">
-        <h2 style="color: #F1E194; font-family: 'Teko'; margin: 0;">💀 BATTLE ROYALE PROTOCOL</h2>
-        <p style="color: #F1E194; font-family: 'Rajdhani'; margin: 5px 0 0 0;">"Survive the Cut. Trust No One."</p>
+    <div style="display:flex; align-items:center; gap:12px; margin: 0 0 20px 0; padding: 12px 16px; background: var(--db-panel); border: 1px solid var(--db-red); border-left: 4px solid var(--db-red);">
+        <span style="font-family:'JetBrains Mono', monospace; font-size:0.75rem; font-weight:700; letter-spacing:2px; color:var(--db-red); border:1px solid var(--db-red); padding:2px 8px;">ON AIR</span>
+        <span style="font-family:'Archivo Black', sans-serif; text-transform:uppercase; font-size:1rem;">Battle Royale — survive the cut, trust no one</span>
     </div>
     """, unsafe_allow_html=True)
 
 if st.session_state.champion:
-    st.markdown(f'<div style="text-align: center; color:#F1E194; font-size: 2rem; font-family: Teko, sans-serif;">👑 CHAMPION: {st.session_state.champion} 👑</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="glass-panel" style="text-align:center; border-left-color: var(--db-amber);">
+        <p style="font-family:'JetBrains Mono', monospace; letter-spacing:2px; color:var(--db-amber); margin:0 0 6px 0;">TOURNAMENT WINNER</p>
+        <h2 style="font-size:2.2rem; margin:0;">{st.session_state.champion}</h2>
+    </div>
+    """, unsafe_allow_html=True)
 else:
-    subtitle = f"{st.session_state.current_round}"
+    phase_badge = ""
     if "Survival" in st.session_state.format:
-        phase_badge = ""
         if "Phase 1" in st.session_state.battle_phase:
-            phase_badge = '<span class="phase-badge phase-1">THE PURGE (2 matches each)</span>'
+            phase_badge = '<span class="phase-badge">THE PURGE · 2 GAMES EACH</span>'
         elif "Phase 2" in st.session_state.battle_phase:
-            phase_badge = '<span class="phase-badge phase-2">THE SQUEEZE (2 matches each)</span>'
+            phase_badge = '<span class="phase-badge">THE SQUEEZE · 2 GAMES EACH</span>'
         elif "Phase 3" in st.session_state.battle_phase:
-            phase_badge = '<span class="phase-badge phase-3">THE STANDOFF</span>'
+            phase_badge = '<span class="phase-badge">THE STANDOFF</span>'
         elif "Phase 4" in st.session_state.battle_phase:
-            phase_badge = '<span class="phase-badge phase-4">GRAND FINAL</span>'
-        
-        subtitle = f"Round {st.session_state.round_number} • {st.session_state.battle_phase} {phase_badge}"
-    
-    st.markdown(f'<div style="text-align: center; color: #F1E194; font-family: Rajdhani, sans-serif; margin-bottom: 2rem;">{subtitle}</div>', unsafe_allow_html=True)
+            phase_badge = '<span class="phase-badge">GRAND FINAL</span>'
+        st.markdown(f'<div style="margin-bottom: 1.5rem;">{phase_badge}</div>', unsafe_allow_html=True)
 
 # --- 🔒 SIDEBAR - CAPTAIN'S PORTAL & DATA MANAGEMENT ---
 with st.sidebar:
     # User Mode Selector
-    st.markdown("### 👤 USER MODE")
+    st.markdown("### Who's using this")
     user_mode = st.radio("Select Mode", ["Admin", "Captain"], 
                         key="user_mode_selector",
                         index=0 if st.session_state.user_mode == "Admin" else 1)
@@ -2212,7 +2223,7 @@ with st.sidebar:
     
     if st.session_state.user_mode == "Admin":
         # ADMIN MODE
-        st.markdown("### 🔐 ADMIN ACCESS")
+        st.markdown("### Admin access")
         
         # Session-specific PIN verification
         if not st.session_state.admin_pin_verified:
@@ -2241,7 +2252,7 @@ with st.sidebar:
                 st.warning(f"🔔 {pending_count} pending report(s) awaiting approval!")
             
             # --- TEAM EDITOR SECTION ---
-            st.markdown("### 🏆 TEAM EDITOR")
+            st.markdown("### Clubs")
             
             # Add new team
             with st.expander("➕ ADD CLUB", expanded=False):
@@ -2352,7 +2363,7 @@ with st.sidebar:
             st.markdown("---")
             
             # --- CAPTAIN CONTROLS SECTION ---
-            st.markdown("### 🧢 CAPTAIN CONTROLS")
+            st.markdown("### Captain tools")
             
             # View all captain PINs
             with st.expander("🔑 VIEW ALL CAPTAIN PINS", expanded=False):
@@ -2428,7 +2439,7 @@ with st.sidebar:
             st.markdown("---")
             
             # --- MANUAL PLAYER STATS EDITOR ---
-            st.markdown("### ⚽ PLAYER STATS EDITOR")
+            st.markdown("### Player stats")
             
             with st.expander("📝 MANUAL STATS CONTROL", expanded=False):
                 if st.session_state.teams:
@@ -2509,7 +2520,7 @@ with st.sidebar:
             st.markdown("---")
             
             # --- PAST CHAMPIONS MANAGEMENT ---
-            st.markdown("### 🏆 PAST CHAMPIONS")
+            st.markdown("### Trophy cabinet")
             
             with st.expander("📜 VIEW PAST CHAMPIONS", expanded=False):
                 if st.session_state.past_champions:
@@ -2562,7 +2573,7 @@ with st.sidebar:
             st.markdown("---")
             
             # --- DATA MANAGEMENT SECTION ---
-            st.markdown("### 💾 DATA MANAGEMENT")
+            st.markdown("### Backups")
             
             # Download backup
             with st.expander("📥 DOWNLOAD BACKUP", expanded=False):
@@ -2596,7 +2607,7 @@ with st.sidebar:
             st.markdown("---")
             
             # --- TOURNAMENT CONTROLS SECTION ---
-            st.markdown("### ⚙️ TOURNAMENT CONTROLS")
+            st.markdown("### Run the tournament")
             
             # Tournament format changer
             with st.expander("🔄 CHANGE TOURNAMENT FORMAT", expanded=False):
@@ -2653,7 +2664,7 @@ with st.sidebar:
                                 safe_rerun()
             
             # Debug tools (Admin only)
-            st.markdown("### 🐛 DEBUG TOOLS")
+            st.markdown("### Diagnostics")
             
             if st.button("🔄 Refresh View", key="refresh_view_btn", use_container_width=True):
                 safe_rerun()
@@ -2725,7 +2736,7 @@ with st.sidebar:
     
     else:
         # CAPTAIN MODE
-        st.markdown("### 🧢 CAPTAIN LOGIN")
+        st.markdown("### Captain check-in")
         
         if not st.session_state.captain_pin_verified:
             # Team selection - only show teams that exist in the tournament
@@ -2776,23 +2787,17 @@ with st.sidebar:
 
 # --- 🎮 MAIN INTERFACE ---
 if not st.session_state.started:
-    # PRE-SEASON LOBBY
-    st.markdown(f"<div class='glass-panel captain-portal' style='text-align:center'><h2>🧢 TOURNAMENT LOBBY</h2><p>Register your team before the season starts</p></div>", unsafe_allow_html=True)
-    
-    # Tournament Code Display
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        st.markdown(f"""
-        <div class='glass-panel' style='text-align:center'>
-            <h3>📋 TOURNAMENT INFO</h3>
-            <p><strong>Tournament Code:</strong> <code>{st.session_state.tournament_code}</code></p>
-            <p>Share this code with your friends to join!</p>
-        </div>
-        """, unsafe_allow_html=True)
+    # PRE-MATCH LOBBY
+    st.markdown(f"""
+    <div class='glass-panel captain-portal' style='text-align:center'>
+        <h2 style="margin-bottom:6px;">Pre-match lobby</h2>
+        <p style="font-family:'JetBrains Mono', monospace; font-size:0.8rem; letter-spacing:1px; color:var(--db-cyan); margin:0;">TEAM SHEET CLOSES WHEN THE ORGANIZER KICKS OFF</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Show Past Champions (Public View)
     if st.session_state.past_champions:
-        st.markdown("### 🏆 PAST CHAMPIONS")
+        st.markdown("### Trophy cabinet")
         cols = st.columns(min(4, len(st.session_state.past_champions)))
         for idx, champ in enumerate(st.session_state.past_champions[:4]):  # Show first 4
             with cols[idx % len(cols)]:
@@ -2804,71 +2809,66 @@ if not st.session_state.started:
                 </div>
                 """, unsafe_allow_html=True)
     
-    # Team Registration Section
-    st.markdown("### 🏆 REGISTER YOUR TEAM")
+    # Team Registration Section — one console, no dead column
+    st.markdown("### Join the tournament")
     
-    reg_col1, reg_col2 = st.columns(2)
+    st.markdown(f"""
+    <div class='glass-panel' style='text-align:left;'>
+        <p style="font-family:'JetBrains Mono', monospace; font-size:0.75rem; letter-spacing:2px; color:var(--db-text-dim); margin:0 0 6px 0;">ACCESS CODE</p>
+        <p style="font-family:'JetBrains Mono', monospace; font-size:1.8rem; color:var(--db-cyan); letter-spacing:6px; margin:0;">{st.session_state.tournament_code}</p>
+        <p style="font-size:0.85rem; margin:10px 0 0 0;">Get this from your organizer, enter it below, then pick a club name no one else has used.</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    with reg_col1:
-        st.markdown("""
-        #### 📝 HOW TO JOIN:
-        1. **Enter Tournament Code** below
-        2. **Choose a Team Name** (unique)
-        3. Click **"REGISTER TEAM"**
-        4. **SAVE YOUR CREDENTIALS** when they appear!
-        """)
+    entered_code = st.text_input("ACCESS CODE", key="tournament_code_input", placeholder="Enter the code your organizer gave you")
     
-    with reg_col2:
-        # Tournament code verification
-        entered_code = st.text_input("ENTER TOURNAMENT CODE", key="tournament_code_input")
+    if entered_code == st.session_state.tournament_code or st.session_state.admin_unlock:
+        new_team_name = st.text_input("CLUB NAME", key="new_team_name_input", placeholder="e.g. Riverside FC")
         
-        if entered_code == st.session_state.tournament_code or st.session_state.admin_unlock:
-            # Team registration form
-            new_team_name = st.text_input("TEAM NAME", key="new_team_name_input")
-            
-            if st.button("🚀 REGISTER TEAM", key="register_team_btn", use_container_width=True):
-                if new_team_name and new_team_name not in st.session_state.teams:
-                    # Add team with captain credentials
-                    credentials_msg, pin, password = add_team_with_captain(new_team_name)
+        if st.button("REGISTER CLUB", key="register_team_btn", use_container_width=True):
+            if new_team_name and new_team_name not in st.session_state.teams:
+                # Add team with captain credentials
+                credentials_msg, pin, password = add_team_with_captain(new_team_name)
+                
+                if credentials_msg and pin:
+                    save_data_internal()
                     
-                    if credentials_msg and pin:
-                        save_data_internal()
-                        
-                        # Show credentials in an expander
-                        with st.expander("✅ REGISTRATION SUCCESSFUL - SAVE THESE!", expanded=True):
-                            st.markdown(credentials_msg)
-                        
-                        st.success(f"Team '{new_team_name}' registered!")
-                        safe_rerun()
-                    elif credentials_msg:
-                        st.error(credentials_msg)
-                elif new_team_name in st.session_state.teams:
-                    st.error("Team name already taken!")
-        elif entered_code and entered_code != st.session_state.tournament_code:
-            st.error("Incorrect tournament code!")
+                    # Show credentials in an expander
+                    with st.expander("You're in — save these credentials now", expanded=True):
+                        st.markdown(credentials_msg)
+                    
+                    st.success(f"'{new_team_name}' is on the team sheet.")
+                    safe_rerun()
+                elif credentials_msg:
+                    st.error(credentials_msg)
+            elif new_team_name in st.session_state.teams:
+                st.error("That club name is already taken.")
+    elif entered_code and entered_code != st.session_state.tournament_code:
+        st.error("That code doesn't match. Check with your organizer.")
     
-    # Show registered teams
+    # Show registered teams — real CSS grid, never looks lonely with 1-3 clubs
     if st.session_state.teams:
-        st.markdown("### 📊 REGISTERED TEAMS")
-        cols = st.columns(4)
-        for i, t in enumerate(st.session_state.teams):
+        st.markdown("### Team sheet")
+        cards_html = "<div style='display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px;'>"
+        for t in st.session_state.teams:
             b = st.session_state.team_badges.get(t, "🛡️")
-            with cols[i % 4]:
-                # For public view, show masked PINs
-                pin = st.session_state.captain_pins.get(t, "N/A")
-                masked_pin = pin[:2] + "••" if len(pin) > 2 else "••••"
-                st.markdown(f"""
-                <div class='glass-panel' style='text-align:center'>
-                    <h1>{b}</h1>
-                    <h3>{t}</h3>
-                    <small>PIN: {masked_pin}</small>
-                </div>
-                """, unsafe_allow_html=True)
+            # For public view, show masked PINs
+            pin = st.session_state.captain_pins.get(t, "N/A")
+            masked_pin = pin[:2] + "••" if len(pin) > 2 else "••••"
+            cards_html += f"""
+            <div class='glass-panel' style='text-align:center; margin-bottom:0;'>
+                <div style="font-size:2rem;">{b}</div>
+                <h3 style="font-size:1rem;">{t}</h3>
+                <small style="font-family:'JetBrains Mono', monospace; color:var(--db-text-dim);">PIN {masked_pin}</small>
+            </div>
+            """
+        cards_html += "</div>"
+        st.markdown(cards_html, unsafe_allow_html=True)
     
     # Admin-only section for starting tournament
     if st.session_state.admin_unlock:
         st.markdown("---")
-        st.markdown("### ⚙️ ADMIN CONTROLS")
+        st.markdown("### Kick off")
         
         fmt = st.radio("SELECT TOURNAMENT FORMAT", 
                       ["Home & Away League", "World Cup (Groups + Knockout)", 
@@ -2979,12 +2979,12 @@ else:
     
     # Battle News Section (for Survival mode)
     if "Survival" in st.session_state.format:
-        st.markdown("### 📰 BATTLE NEWS")
+        st.markdown("### Who's still standing")
         
         # Current status metrics
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Teams Alive", len(st.session_state.active_teams))
+            st.metric("Clubs left", len(st.session_state.active_teams))
         with col2:
             st.metric("Round", st.session_state.round_number)
         with col3:
@@ -2998,7 +2998,7 @@ else:
         if total_teams > 0:
             survival_percent = (remaining_teams / total_teams) * 100
             
-            st.markdown(f"**SURVIVAL PROGRESS:** {remaining_teams}/{total_teams} teams remaining ({survival_percent:.1f}%)")
+            st.markdown(f"**Still in it:** {remaining_teams} of {total_teams} clubs ({survival_percent:.0f}%)")
             progress_html = f"""
             <div class="progress-container">
                 <div class="progress-bar" style="width: {survival_percent}%">
@@ -3008,23 +3008,21 @@ else:
             """
             st.markdown(progress_html, unsafe_allow_html=True)
         
-        # News feed
+        # News feed — scrolling broadcast ticker instead of a stacked list
         if st.session_state.news:
-            st.markdown("#### 📋 RECENT EVENTS")
-            news_container = st.container()
-            with news_container:
-                for i, news_item in enumerate(st.session_state.news[:10]):  # Show last 10 news items
-                    st.markdown(f"""
-                    <div class="news-item">
-                        {news_item}
-                    </div>
-                    """, unsafe_allow_html=True)
+            ticker_text = "&nbsp;&nbsp;•&nbsp;&nbsp;".join(st.session_state.news[:10])
+            st.markdown(f"""
+            <div style="overflow:hidden; white-space:nowrap; background:var(--db-panel); border:1px solid var(--db-border); border-left:4px solid var(--db-red); padding:10px 0; margin-bottom:10px;">
+                <span style="font-family:'JetBrains Mono', monospace; font-size:0.75rem; font-weight:700; letter-spacing:2px; color:var(--db-red); padding:0 12px; border-right:1px solid var(--db-border);">LATEST</span>
+                <span style="font-family:'JetBrains Mono', monospace; font-size:0.85rem; padding-left:12px;">{ticker_text}</span>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
     
     # Pending reports approval section (Admin only) - WITH EDIT CAPABILITY
     if st.session_state.admin_unlock and st.session_state.pending_reports:
-        st.markdown("### ⏳ PENDING REPORTS")
+        st.markdown("### Awaiting review")
         
         for report in st.session_state.pending_reports:
             with st.container():
@@ -3171,7 +3169,7 @@ else:
             st.markdown(f"<div class='glass-panel captain-portal'><h2>🧢 CAPTAIN'S PORTAL - {captain_team}</h2><p>Manage your team's matches and reports</p></div>", unsafe_allow_html=True)
             
             # Captain's matches - only show matches involving their team
-            st.markdown("### ⚽ YOUR MATCHES")
+            st.markdown("### Your fixtures")
             
             # Debug info
             debug_info = debug_captain_view(captain_team)
@@ -3248,26 +3246,26 @@ else:
                         res = st.session_state.results[mid]
                         score = f"{res[0]} - {res[1]}"
                         if len(res) > 2:
-                            score += f"\n(P: {res[2]}-{res[3]})"
-                        col2.markdown(f"<h1 style='text-align:center; color:#F1E194'>{score}</h1>", unsafe_allow_html=True)
-                        col2.success("✅ Match completed & approved")
+                            score += f" (pens {res[2]}-{res[3]})"
+                        col2.markdown(f"<h1 style='text-align:center; font-family:JetBrains Mono, monospace; color:var(--db-text)'>{score}</h1>", unsafe_allow_html=True)
+                        col2.markdown("<div style='text-align:center;'><span class='phase-badge' style='background:var(--db-green); color:#04331A;'>FULL TIME</span></div>", unsafe_allow_html=True)
                     elif result_status == "pending":
                         # Show pending result
                         if mid in st.session_state.fixed_results:
                             fixed = st.session_state.fixed_results[mid]
                             score = f"{fixed['home_score']} - {fixed['away_score']}"
-                            col2.markdown(f"<h1 style='text-align:center; color:#FF9800'>{score}</h1>", unsafe_allow_html=True)
-                            col2.warning("⏳ Pending approval")
+                            col2.markdown(f"<h1 style='text-align:center; font-family:JetBrains Mono, monospace; color:var(--db-amber)'>{score}</h1>", unsafe_allow_html=True)
+                            col2.markdown("<div style='text-align:center;'><span class='phase-badge' style='background:var(--db-amber); color:#402B00;'>AWAITING REVIEW</span></div>", unsafe_allow_html=True)
                         else:
-                            col2.markdown(f"<h1 style='text-align:center; color:#FF9800'>VS</h1>", unsafe_allow_html=True)
-                            col2.info("⚠️ Result pending")
+                            col2.markdown(f"<h1 style='text-align:center; font-family:JetBrains Mono, monospace; color:var(--db-amber)'>VS</h1>", unsafe_allow_html=True)
+                            col2.markdown("<div style='text-align:center;'><span class='phase-badge' style='background:var(--db-amber); color:#402B00;'>RESULT PENDING</span></div>", unsafe_allow_html=True)
                     else:
-                        col2.markdown(f"<h1 style='text-align:center; color:#946c1e'>VS</h1>", unsafe_allow_html=True)
+                        col2.markdown(f"<h1 style='text-align:center; font-family:JetBrains Mono, monospace; color:var(--db-text-dim)'>VS</h1>", unsafe_allow_html=True)
                         
                         # Captain fixing form - only if captain's team is involved
-                        expander_title = f"📝 FIX MATCH RESULT"
+                        expander_title = f"Report this result"
                         with st.expander(expander_title, expanded=True):
-                            st.info("You can fix the result for this match. It will be sent for admin approval.")
+                            st.markdown("Enter what happened. It goes to the admin for approval before it counts.")
                             
                             # Determine if captain's team is home or away
                             is_home = h == captain_team
@@ -3323,7 +3321,7 @@ else:
                                     ha_opp = st.text_input("Your Assists", key=f"cap_ha_opp_{mid}")
                                     hr_opp = st.text_input("Your Red Cards", key=f"cap_hr_opp_{mid}")
                             
-                            if st.button("📨 SUBMIT FOR APPROVAL", key=f"cap_submit_{mid}", use_container_width=True):
+                            if st.button("SUBMIT RESULT", key=f"cap_submit_{mid}", use_container_width=True):
                                 # Prepare and submit fixed result
                                 if is_home:
                                     fixed_result, report = fix_match_result_by_captain(mid, h, a, s1, s2, gs, gs_opp, ha, ha_opp, hr, hr_opp, p1, p2, captain_team)
@@ -3331,13 +3329,13 @@ else:
                                     fixed_result, report = fix_match_result_by_captain(mid, h, a, s2, s1, gs_opp, gs, ha_opp, ha, hr_opp, hr, p2, p1, captain_team)
                                 
                                 save_data_internal()
-                                st.success("✅ Result fixed! Awaiting Admin approval.")
+                                st.success("Sent. It'll show as full time once the admin confirms it.")
                                 safe_rerun()
                     
                     st.markdown("</div>", unsafe_allow_html=True)
             
             # Captain's team info
-            st.markdown("### 📊 YOUR TEAM STATS")
+            st.markdown("### Your record")
             
             if captain_team in st.session_state.cumulative_stats:
                 stats = st.session_state.cumulative_stats[captain_team]
@@ -3352,7 +3350,7 @@ else:
                 col4.metric("Position", position)
             
             # Tournament info for captain
-            st.markdown("### 🏆 TOURNAMENT INFO")
+            st.markdown("### Tournament info")
             st.info(f"**Format:** {st.session_state.format}")
             st.info(f"**Current Round:** {st.session_state.current_round}")
             
@@ -3361,7 +3359,7 @@ else:
             
             # Show past champions to captain
             if st.session_state.past_champions:
-                st.markdown("### 🏆 PAST CHAMPIONS")
+                st.markdown("### Trophy cabinet")
                 for champ in st.session_state.past_champions[:3]:  # Show last 3
                     st.markdown(f"**{champ['year']}:** {champ['champion']} ({champ['format']})")
     
@@ -3370,7 +3368,7 @@ else:
         
         # Show Past Champions (Public View)
         if st.session_state.past_champions:
-            st.markdown("### 🏆 PAST CHAMPIONS")
+            st.markdown("### Trophy cabinet")
             cols = st.columns(min(4, len(st.session_state.past_champions)))
             for idx, champ in enumerate(st.session_state.past_champions[:4]):  # Show first 4
                 with cols[idx % len(cols)]:
@@ -3401,7 +3399,7 @@ else:
         with tabs[0]:
             if "World Cup" in st.session_state.format and st.session_state.world_cup_stage == "Group Stage":
                 # Show group tables
-                st.markdown("### 🌍 GROUP STAGE STANDINGS")
+                st.markdown("### Group standings")
                 
                 for group_name, teams in st.session_state.groups.items():
                     with st.expander(f"Group {group_name}", expanded=True):
@@ -3486,7 +3484,7 @@ else:
             
             elif "World Cup" in st.session_state.format or "Knockout" in st.session_state.format:
                 # Show knockout bracket
-                st.markdown("### 🎯 KNOCKOUT BRACKET")
+                st.markdown("### Bracket")
                 
                 if st.session_state.fixtures:
                     col1, col2 = st.columns(2)
@@ -3513,9 +3511,9 @@ else:
                             elif result_status == "pending":
                                 if mid in st.session_state.fixed_results:
                                     fixed = st.session_state.fixed_results[mid]
-                                    match_html += f"<span style='color: #FF9800; font-weight: bold;'>{fixed['home_score']} - {fixed['away_score']} (Pending)</span>"
+                                    match_html += f"<span style='color: var(--db-amber); font-weight: bold;'>{fixed['home_score']} - {fixed['away_score']} (pending)</span>"
                                 else:
-                                    match_html += "<span style='color: #FF9800;'>Pending</span>"
+                                    match_html += "<span style='color: var(--db-amber);'>Pending</span>"
                             else:
                                 match_html += "Not played"
                             
@@ -3686,9 +3684,9 @@ else:
                     
                     # Match header
                     if is_sudden_death:
-                        c1.markdown(f"<h3 style='text-align:right; color:#ff6b6b'>{h} {b1}</h3>", unsafe_allow_html=True)
-                        c3.markdown(f"<h3 style='text-align:left; color:#ff6b6b'>{b2} {a}</h3>", unsafe_allow_html=True)
-                        c2.markdown(f"<div style='text-align:center'><small>⚔️ SUDDEN DEATH • Leg {st.session_state.sudden_death_round}</small></div>", unsafe_allow_html=True)
+                        c1.markdown(f"<h3 style='text-align:right; color:var(--db-red)'>{h} {b1}</h3>", unsafe_allow_html=True)
+                        c3.markdown(f"<h3 style='text-align:left; color:var(--db-red)'>{b2} {a}</h3>", unsafe_allow_html=True)
+                        c2.markdown(f"<div style='text-align:center'><span class='phase-badge' style='background:var(--db-red);'>SUDDEN DEATH · LEG {st.session_state.sudden_death_round}</span></div>", unsafe_allow_html=True)
                     else:
                         c1.markdown(f"<h3 style='text-align:right'>{h} {b1}</h3>", unsafe_allow_html=True)
                         c3.markdown(f"<h3 style='text-align:left'>{b2} {a}</h3>", unsafe_allow_html=True)
@@ -3697,30 +3695,31 @@ else:
                     if result_status == "approved" and mid in st.session_state.results:
                         res = st.session_state.results[mid]
                         sc = f"{res[0]} - {res[1]}"
-                        if len(res) > 2: sc += f"\n(P: {res[2]}-{res[3]})"
-                        score_color = "#ef4444" if is_sudden_death else "#F1E194"
-                        c2.markdown(f"<h1 style='text-align:center; color:{score_color}'>{sc}</h1>", unsafe_allow_html=True)
+                        if len(res) > 2: sc += f" (pens {res[2]}-{res[3]})"
+                        score_color = "var(--db-red)" if is_sudden_death else "var(--db-text)"
+                        c2.markdown(f"<h1 style='text-align:center; font-family:JetBrains Mono, monospace; color:{score_color}'>{sc}</h1>", unsafe_allow_html=True)
+                        c2.markdown("<div style='text-align:center;'><span class='phase-badge' style='background:var(--db-green); color:#04331A;'>FULL TIME</span></div>", unsafe_allow_html=True)
                     elif result_status == "pending":
                         if mid in st.session_state.fixed_results:
                             fixed = st.session_state.fixed_results[mid]
                             sc = f"{fixed['home_score']} - {fixed['away_score']}"
-                            c2.markdown(f"<h1 style='text-align:center; color:#FF9800'>{sc}</h1>", unsafe_allow_html=True)
-                            c2.markdown("<div style='text-align:center; font-size: 0.8rem; color:#FF9800'>⏳ Pending Approval</div>", unsafe_allow_html=True)
+                            c2.markdown(f"<h1 style='text-align:center; font-family:JetBrains Mono, monospace; color:var(--db-amber)'>{sc}</h1>", unsafe_allow_html=True)
+                            c2.markdown("<div style='text-align:center;'><span class='phase-badge' style='background:var(--db-amber); color:#402B00;'>AWAITING REVIEW</span></div>", unsafe_allow_html=True)
                         else:
-                            c2.markdown(f"<h1 style='text-align:center; color:#FF9800'>VS</h1>", unsafe_allow_html=True)
-                            c2.markdown("<div style='text-align:center; font-size: 0.8rem; color:#FF9800'>Result Pending</div>", unsafe_allow_html=True)
+                            c2.markdown(f"<h1 style='text-align:center; font-family:JetBrains Mono, monospace; color:var(--db-amber)'>VS</h1>", unsafe_allow_html=True)
+                            c2.markdown("<div style='text-align:center;'><span class='phase-badge' style='background:var(--db-amber); color:#402B00;'>RESULT PENDING</span></div>", unsafe_allow_html=True)
                     else: 
                         if is_sudden_death:
-                            c2.markdown(f"<h1 style='text-align:center; color:#ef4444'>⚔️ VS ⚔️</h1>", unsafe_allow_html=True)
+                            c2.markdown(f"<h1 style='text-align:center; font-family:JetBrains Mono, monospace; color:var(--db-red)'>VS</h1>", unsafe_allow_html=True)
                         else:
-                            c2.markdown(f"<h1 style='text-align:center; color:#946c1e'>VS</h1>", unsafe_allow_html=True)
+                            c2.markdown(f"<h1 style='text-align:center; font-family:JetBrains Mono, monospace; color:var(--db-text-dim)'>VS</h1>", unsafe_allow_html=True)
                     
                     # Admin controls for match reporting
                     if st.session_state.admin_unlock and not st.session_state.champion: 
-                        expander_title = f"📝 ENTER/RESET RESULT"
+                        expander_title = f"Enter or reset this result"
                         with st.expander(expander_title, expanded=False):
                             if is_sudden_death:
-                                st.warning("⚔️ **SUDDEN DEATH SEMI-FINAL:** Loser is ELIMINATED!")
+                                st.warning("Sudden death semi-final — the loser is out of the tournament.")
                             
                             ac1, ac2 = st.columns(2)
                             
@@ -3762,7 +3761,7 @@ else:
                             
                             col1, col2 = st.columns(2)
                             with col1:
-                                if st.button("✅ CONFIRM RESULT", key=f"b_{mid}", use_container_width=True):
+                                if st.button("CONFIRM RESULT", key=f"b_{mid}", use_container_width=True):
                                     # Use the safe update function and mark as approved
                                     update_match_result_safely(mid, h, a, s1, s2, p1, p2, gs1_input, gs2_input, ha, aa, hr, ar)
                                     st.session_state.admin_approved_results[mid] = True
@@ -3779,7 +3778,7 @@ else:
                                     safe_rerun()
                             
                             with col2:
-                                if result_status != "not_played" and st.button("🔄 RESET MATCH", key=f"reset_{mid}", use_container_width=True):
+                                if result_status != "not_played" and st.button("RESET RESULT", key=f"reset_{mid}", use_container_width=True):
                                     if reset_match_result(mid):
                                         save_data_internal()
                                         st.warning("Match reset!")
@@ -3814,12 +3813,12 @@ else:
                     with col1:
                         if not df.empty:
                             top_scorer = df.sort_values(by='Goals', ascending=False).iloc[0]
-                            st.markdown(f"<div class='glass-panel' style='text-align:center'><h3>👑 GOLDEN BOOT</h3><h2 class='golden-boot'>{top_scorer['Player']} ({top_scorer['Club']}) - {top_scorer['Goals']} goals</h2></div>", unsafe_allow_html=True)
+                            st.markdown(f"<div class='glass-panel' style='text-align:center'><h3>Golden boot</h3><h2 class='golden-boot'>{top_scorer['Player']} ({top_scorer['Club']}) — {top_scorer['Goals']} goals</h2></div>", unsafe_allow_html=True)
                     
                     with col2:
                         if not df.empty:
                             top_assister = df.sort_values(by='Assists', ascending=False).iloc[0]
-                            st.markdown(f"<div class='glass-panel' style='text-align:center'><h3>🎯 TOP PLAYMAKER</h3><h2 style='color:#F1E194; font-weight:bold; font-size:1.5rem;'>{top_assister['Player']} ({top_assister['Club']}) - {top_assister['Assists']} assists</h2></div>", unsafe_allow_html=True)
+                            st.markdown(f"<div class='glass-panel' style='text-align:center'><h3>Top playmaker</h3><h2 style='color:var(--db-cyan); font-weight:bold; font-size:1.5rem;'>{top_assister['Player']} ({top_assister['Club']}) — {top_assister['Assists']} assists</h2></div>", unsafe_allow_html=True)
                     
                     c1, c2, c3 = st.columns(3)
                     
@@ -3849,7 +3848,7 @@ else:
         # --- TAB 4: Tournament Info ---
         with tabs[3]:
             if "Survival" in st.session_state.format:
-                st.markdown("### 💀 BATTLE ROYALE PROTOCOL")
+                st.markdown("### How Battle Royale works")
                 
                 # Protocol Rules
                 with st.expander("📜 THE CORE RULES", expanded=True):
@@ -3899,7 +3898,7 @@ else:
                     """)
                 
                 # Current Status
-                st.markdown("### 🎯 CURRENT STATUS")
+                st.markdown("### Right now")
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
@@ -3913,7 +3912,7 @@ else:
             
             else:
                 # Tournament info for all formats
-                st.markdown("### 🏆 TOURNAMENT INFORMATION")
+                st.markdown("### Format info")
                 
                 if "World Cup" in st.session_state.format:
                     st.markdown("#### 🌍 WORLD CUP FORMAT")
@@ -4021,7 +4020,7 @@ else:
         
         # --- TAB 5: Hall of Fame ---
         with tabs[4]:
-            st.markdown("### 🏅 HALL OF FAME")
+            st.markdown("### Hall of fame")
             
             if st.session_state.past_champions:
                 # Show all past champions
@@ -4103,4 +4102,4 @@ else:
                     """, unsafe_allow_html=True)
 
 # --- FOOTER ---
-st.markdown("""<div class="footer">OFFICIAL DLS TOURNAMENT ENGINE • CAPTAIN'S PORTAL EDITION <br> WRITTEN AND DESIGNED BY <span class="designer-name">OLUWATIMILEYIN IGBINLOLA</span></div>""", unsafe_allow_html=True)
+st.markdown("""<div class="footer">DLS ULTRA — RUN OUT OF THE GROUP CHAT <br> BUILT BY <span class="designer-name">OLUWATIMILEYIN IGBINLOLA</span></div>""", unsafe_allow_html=True)
